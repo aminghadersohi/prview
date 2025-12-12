@@ -5,6 +5,7 @@ Beautiful dark theme UI inspired by VS Code/Atom.
 
 import asyncio
 import json
+import os
 import subprocess
 import sqlite3
 import time
@@ -16,13 +17,23 @@ from typing import Optional, AsyncGenerator
 
 import yaml
 from fastapi import FastAPI, Request, BackgroundTasks
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 # Paths
 CONFIG_PATH = Path.home() / ".config" / "prview" / "config.yaml"
 DB_PATH = Path.home() / ".config" / "prview" / "prview.db"
+
+# GitHub environment variables that affect gh CLI
+GH_ENV_VARS = [
+    ("GH_TOKEN", "Authentication token for github.com (takes precedence over stored credentials)"),
+    ("GITHUB_TOKEN", "Alternative authentication token for github.com"),
+    ("GH_ENTERPRISE_TOKEN", "Authentication token for GitHub Enterprise Server"),
+    ("GITHUB_ENTERPRISE_TOKEN", "Alternative token for GitHub Enterprise Server"),
+    ("GH_HOST", "Default GitHub hostname when not specified"),
+    ("GH_REPO", "Default repository in [HOST/]OWNER/REPO format"),
+]
 
 # Ensure config directory exists
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -443,6 +454,145 @@ async def sse_events():
 async def api_prs():
     """JSON API for PR data."""
     return get_prs_from_db()
+
+
+def get_gh_auth_status() -> dict:
+    """Get GitHub CLI authentication status."""
+    result = {
+        "authenticated": False,
+        "hostname": None,
+        "username": None,
+        "token_source": None,
+        "scopes": [],
+        "error": None,
+    }
+
+    try:
+        # Check if gh is installed
+        version_output = subprocess.run(
+            ["gh", "--version"], capture_output=True, text=True, timeout=5
+        )
+        if version_output.returncode != 0:
+            result["error"] = "gh CLI not installed"
+            return result
+
+        # Get auth status
+        auth_output = subprocess.run(
+            ["gh", "auth", "status"], capture_output=True, text=True, timeout=10
+        )
+
+        output = auth_output.stdout + auth_output.stderr
+
+        if "Logged in to" in output:
+            result["authenticated"] = True
+            # Parse the output
+            for line in output.split("\n"):
+                line = line.strip()
+                if line.startswith("✓ Logged in to"):
+                    # Extract hostname and username
+                    parts = line.replace("✓ Logged in to", "").strip().split(" account ")
+                    if len(parts) >= 1:
+                        result["hostname"] = parts[0].strip()
+                    if len(parts) >= 2:
+                        result["username"] = parts[1].split()[0].strip()
+                elif "Token:" in line:
+                    result["token_source"] = "configured"
+                elif "Token scopes:" in line:
+                    scopes_str = line.replace("Token scopes:", "").strip().strip("'")
+                    result["scopes"] = [s.strip().strip("'") for s in scopes_str.split(",")]
+        else:
+            result["error"] = "Not authenticated. Run 'gh auth login' to authenticate."
+
+    except subprocess.TimeoutExpired:
+        result["error"] = "Timeout checking gh auth status"
+    except FileNotFoundError:
+        result["error"] = "gh CLI not found. Install from https://cli.github.com/"
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+def get_env_vars_status() -> list[dict]:
+    """Get status of GitHub-related environment variables."""
+    env_status = []
+    for var_name, description in GH_ENV_VARS:
+        value = os.environ.get(var_name)
+        env_status.append(
+            {
+                "name": var_name,
+                "description": description,
+                "is_set": value is not None,
+                "value_preview": f"{value[:8]}..." if value and len(value) > 8 else value,
+            }
+        )
+    return env_status
+
+
+def save_config(config_data: dict):
+    """Save config to YAML file."""
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_PATH, "w") as f:
+        yaml.dump(config_data, f, default_flow_style=False)
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """Settings page with GitHub connection status and config."""
+    auth_status = get_gh_auth_status()
+    env_vars = get_env_vars_status()
+    config = load_config()
+
+    return templates.TemplateResponse(
+        "settings.html",
+        {
+            "request": request,
+            "auth_status": auth_status,
+            "env_vars": env_vars,
+            "config": config,
+            "config_path": str(CONFIG_PATH),
+        },
+    )
+
+
+@app.post("/settings/save")
+async def save_settings(request: Request):
+    """Save settings from form."""
+    form_data = await request.form()
+
+    # Parse form data
+    include_orgs = [
+        org.strip() for org in form_data.get("include_orgs", "").split("\n") if org.strip()
+    ]
+    exclude_orgs = [
+        org.strip() for org in form_data.get("exclude_orgs", "").split("\n") if org.strip()
+    ]
+    include_repos = [
+        repo.strip() for repo in form_data.get("include_repos", "").split("\n") if repo.strip()
+    ]
+    exclude_repos = [
+        repo.strip() for repo in form_data.get("exclude_repos", "").split("\n") if repo.strip()
+    ]
+
+    config_data = {
+        "include_orgs": include_orgs,
+        "exclude_orgs": exclude_orgs,
+        "include_repos": include_repos,
+        "exclude_repos": exclude_repos,
+        "refresh_interval": int(form_data.get("refresh_interval", 60)),
+        "show_drafts": form_data.get("show_drafts") == "on",
+        "max_prs_per_repo": int(form_data.get("max_prs_per_repo", 10)),
+    }
+
+    save_config(config_data)
+
+    return RedirectResponse(url="/settings?saved=1", status_code=303)
+
+
+@app.get("/api/auth-status")
+async def api_auth_status():
+    """JSON API for auth status."""
+    return get_gh_auth_status()
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8420):
