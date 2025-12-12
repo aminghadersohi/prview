@@ -327,6 +327,35 @@
         .status-icon.pending { background: rgba(210, 153, 34, 0.2); color: #d29922; }
         .status-icon.none { background: var(--bg-tertiary); color: var(--text-secondary); }
 
+        /* Screenshots */
+        .screenshots {
+            padding: 60px 0;
+        }
+
+        .screenshots h2 {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .screenshot-container {
+            margin-bottom: 40px;
+        }
+
+        .screenshot-container h3 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .screenshot-container img {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
         /* Footer */
         footer {
             padding: 40px 0;
@@ -381,6 +410,19 @@
                     </svg>
                     PyPI Package
                 </a>
+            </div>
+        </section>
+
+        <!-- Screenshots -->
+        <section class="screenshots">
+            <h2>Screenshots</h2>
+            <div class="screenshot-container">
+                <h3>Dashboard - Your PRs at a glance</h3>
+                <img src="screenshot-dashboard.png" alt="prview dashboard showing open PRs with CI and review status">
+            </div>
+            <div class="screenshot-container">
+                <h3>Settings - Configure your connection</h3>
+                <img src="screenshot-settings.png" alt="prview settings page showing GitHub connection and filter options">
             </div>
         </section>
 
