@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sqlite3
+import threading
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, asdict
@@ -37,6 +38,18 @@ GH_ENV_VARS = [
 
 # Ensure config directory exists
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# Lock to prevent concurrent sync operations
+_sync_lock = threading.Lock()
+
+
+def get_db_connection(timeout: float = 30.0) -> sqlite3.Connection:
+    """Get a database connection with proper settings for concurrency."""
+    conn = sqlite3.connect(DB_PATH, timeout=timeout)
+    # Enable WAL mode for better concurrent access
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")  # 30 second busy timeout
+    return conn
 
 
 def load_config() -> dict:
@@ -76,7 +89,7 @@ def should_include_repo(repo: str, config: dict) -> bool:
 
 def init_db():
     """Initialize SQLite database."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.execute("""
         CREATE TABLE IF NOT EXISTS prs (
             id INTEGER PRIMARY KEY,
@@ -189,14 +202,19 @@ def get_review_status(decision: str) -> str:
 
 def sync_prs():
     """Sync PRs from GitHub to database."""
-    config = load_config()
-    conn = sqlite3.connect(DB_PATH)
+    # Prevent concurrent syncs
+    if not _sync_lock.acquire(blocking=False):
+        return  # Another sync is already in progress
 
-    # Mark as syncing
-    conn.execute("UPDATE sync_status SET is_syncing = 1, error = NULL WHERE id = 1")
-    conn.commit()
-
+    conn = None
     try:
+        config = load_config()
+        conn = get_db_connection()
+
+        # Mark as syncing
+        conn.execute("UPDATE sync_status SET is_syncing = 1, error = NULL WHERE id = 1")
+        conn.commit()
+
         now = datetime.now().isoformat()
 
         # Clear old data (we'll re-add current ones)
@@ -314,15 +332,18 @@ def sync_prs():
         conn.commit()
 
     except Exception as e:
-        conn.execute("UPDATE sync_status SET is_syncing = 0, error = ? WHERE id = 1", (str(e),))
-        conn.commit()
+        if conn:
+            conn.execute("UPDATE sync_status SET is_syncing = 0, error = ? WHERE id = 1", (str(e),))
+            conn.commit()
     finally:
-        conn.close()
+        if conn:
+            conn.close()
+        _sync_lock.release()
 
 
 def get_prs_from_db():
     """Get all PRs from database."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
 
     my_prs = conn.execute("""
