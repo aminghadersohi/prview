@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>prview - GitHub PR Dashboard</title>
+    <meta name="description" content="A beautiful TUI and web dashboard for GitHub PRs and CI status">
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-purple: #a371f7;
+            --accent-cyan: #39c5cf;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Hero */
+        .hero {
+            padding: 80px 0 60px;
+            text-align: center;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            font-size: 20px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        .badges {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .badge.python { border-color: #3572A5; }
+        .badge.license { border-color: var(--accent-green); }
+
+        /* Buttons */
+        .buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: #79b8ff;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            border-color: var(--accent-blue);
+        }
+
+        /* Install */
+        .install {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 40px 0;
+        }
+
+        .install-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .install-code {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .install-code code {
+            flex: 1;
+            background: var(--bg-primary);
+            padding: 16px 20px;
+            border-radius: 8px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 15px;
+            color: var(--accent-green);
+        }
+
+        .copy-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        /* Features */
+        .features {
+            padding: 60px 0;
+        }
+
+        .features h2 {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+        }
+
+        .feature {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .feature-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+
+        .feature h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .feature p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Modes */
+        .modes {
+            padding: 60px 0;
+        }
+
+        .modes h2 {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .mode-tabs {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .mode-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            flex: 1;
+            min-width: 280px;
+            max-width: 400px;
+        }
+
+        .mode-card h3 {
+            font-size: 20px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mode-card code {
+            display: block;
+            background: var(--bg-primary);
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 14px;
+            color: var(--accent-cyan);
+            margin-bottom: 16px;
+        }
+
+        .mode-card p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Status Icons */
+        .status-section {
+            padding: 60px 0;
+        }
+
+        .status-section h2 {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+        }
+
+        .status-group {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .status-group h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+        }
+
+        .status-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .status-icon.success { background: rgba(63, 185, 80, 0.2); color: var(--accent-green); }
+        .status-icon.failure { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+        .status-icon.pending { background: rgba(210, 153, 34, 0.2); color: #d29922; }
+        .status-icon.none { background: var(--bg-tertiary); color: var(--text-secondary); }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            border-top: 1px solid var(--border);
+            margin-top: 60px;
+        }
+
+        footer a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            h1 { font-size: 36px; }
+            .tagline { font-size: 16px; }
+            .hero { padding: 60px 0 40px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Hero -->
+        <section class="hero">
+            <div class="logo">⎔</div>
+            <h1>prview</h1>
+            <p class="tagline">A beautiful TUI and web dashboard for GitHub PRs and CI status</p>
+
+            <div class="badges">
+                <span class="badge python">Python 3.9+</span>
+                <span class="badge license">MIT License</span>
+            </div>
+
+            <div class="buttons">
+                <a href="https://github.com/aminghadersohi/prview" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    View on GitHub
+                </a>
+                <a href="https://pypi.org/project/prview/" class="btn btn-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12.042 4.758c-1.341 0-2.557.407-3.476 1.128-.919.721-1.477 1.738-1.477 2.869v2.489h4.953v.831H5.858c-1.398 0-2.623 1.028-3.007 2.845-.443 2.082-.462 3.379 0 5.553.343 1.618 1.163 2.845 2.561 2.845h1.657v-2.565c0-1.587 1.373-2.987 3.007-2.987h4.941c1.337 0 2.404-1.1 2.404-2.458v-4.695c0-1.318-1.107-2.308-2.404-2.555-1.641-.311-3.333-.3-4.975 0zm-2.755 1.661c.498 0 .902.413.902.922 0 .509-.404.923-.902.923-.499 0-.903-.414-.903-.923 0-.509.404-.922.903-.922z"/>
+                        <path d="M15.083 11.244h-1.657v2.565c0 1.587-1.373 2.987-3.007 2.987h-4.941c-1.337 0-2.404 1.1-2.404 2.458v4.695c0 1.318 1.341 2.086 2.404 2.458 1.273.446 2.493.526 4.015 0 1.011-.349 2.404-1.051 2.404-2.458v-1.861h-4.941v-.622h7.948c1.398 0 1.919-1.029 2.404-2.567.5-1.585.479-3.108 0-5.176-.344-1.487-1.001-2.479-2.404-2.479h-1.821zm-1.318 10.439c.498 0 .902.414.902.923 0 .509-.404.922-.902.922-.499 0-.903-.413-.903-.922 0-.509.404-.923.903-.923z"/>
+                    </svg>
+                    PyPI Package
+                </a>
+            </div>
+        </section>
+
+        <!-- Install -->
+        <section class="install">
+            <div class="install-label">Quick Install</div>
+            <div class="install-code">
+                <code>pip install prview[all]</code>
+                <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install prview[all]')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features">
+            <h2>Features</h2>
+            <div class="features-grid">
+                <div class="feature">
+                    <div class="feature-icon">📝</div>
+                    <h3>Your Open PRs</h3>
+                    <p>View all your open PRs across multiple repos and organizations in one place</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">👀</div>
+                    <h3>Review Requests</h3>
+                    <p>See PRs where your review has been requested, never miss a review again</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">✅</div>
+                    <h3>CI Status</h3>
+                    <p>At-a-glance CI status showing pass, fail, or running states</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📊</div>
+                    <h3>Diff Stats</h3>
+                    <p>Lines added and removed for each PR at a quick glance</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚙️</div>
+                    <h3>Configurable</h3>
+                    <p>YAML config for orgs, repos, includes/excludes, and more</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Real-time Updates</h3>
+                    <p>Auto-refresh with Server-Sent Events in web mode</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modes -->
+        <section class="modes">
+            <h2>Two Ways to Use</h2>
+            <div class="mode-tabs">
+                <div class="mode-card">
+                    <h3>🖥️ TUI Mode</h3>
+                    <code>prview --watch</code>
+                    <p>Beautiful terminal UI with keyboard navigation. Navigate PRs with arrow keys, open in browser with Enter.</p>
+                </div>
+                <div class="mode-card">
+                    <h3>🌐 Web Mode</h3>
+                    <code>prview web</code>
+                    <p>VS Code-inspired dark theme dashboard with real-time updates via SSE. Access from any browser.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Status Icons -->
+        <section class="status-section">
+            <h2>Status at a Glance</h2>
+            <div class="status-grid">
+                <div class="status-group">
+                    <h3>CI Status</h3>
+                    <div class="status-item">
+                        <span class="status-icon success">✓</span>
+                        <span>All checks passed</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-icon failure">✗</span>
+                        <span>Checks failed</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-icon pending">◐</span>
+                        <span>Running/pending</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-icon none">○</span>
+                        <span>No checks</span>
+                    </div>
+                </div>
+                <div class="status-group">
+                    <h3>Review Status</h3>
+                    <div class="status-item">
+                        <span class="status-icon success">✓</span>
+                        <span>Approved</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-icon failure">✗</span>
+                        <span>Changes requested</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-icon pending">●</span>
+                        <span>Review required</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-icon none">○</span>
+                        <span>Pending</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Made by <a href="https://github.com/aminghadersohi">Amin Ghadersohi</a> · MIT License · <a href="https://github.com/aminghadersohi/prview">GitHub</a></p>
+        </div>
+    </footer>
+</body>
+</html>
