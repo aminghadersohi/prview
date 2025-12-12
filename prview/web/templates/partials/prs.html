@@ -1,0 +1,124 @@
+<!-- My PRs Section -->
+<section class="section">
+    <div class="section-header">
+        <span class="section-icon">📝</span>
+        <span class="section-title">My Open PRs</span>
+        <span class="section-count">{{ my_prs.values()|sum(start=[])|length }}</span>
+    </div>
+
+    {% if my_prs %}
+        {% for repo, prs in my_prs.items() %}
+        <div class="repo-group">
+            <div class="repo-header">
+                <span class="repo-icon">📁</span>
+                <span>{{ repo }}</span>
+            </div>
+            <div class="pr-list">
+                {% for pr in prs %}
+                <a href="{{ pr.url }}" target="_blank" class="pr-item">
+                    <span class="pr-number">#{{ pr.number }}</span>
+                    <span class="pr-title {% if pr.draft %}draft{% endif %}">
+                        {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
+                        {{ pr.title }}
+                    </span>
+                    <span class="pr-author">{{ pr.author }}</span>
+                    <span class="pr-ci">
+                        {% if pr.ci_status == 'success' %}
+                        <span class="status-icon success">✓</span>
+                        {% elif pr.ci_status == 'failure' %}
+                        <span class="status-icon failure">✗</span>
+                        {% elif pr.ci_status == 'pending' %}
+                        <span class="status-icon pending">◐</span>
+                        {% else %}
+                        <span class="status-icon none">○</span>
+                        {% endif %}
+                    </span>
+                    <span class="pr-review">
+                        {% if pr.review_status == 'approved' %}
+                        <span class="status-icon success">✓</span>
+                        {% elif pr.review_status == 'changes_requested' %}
+                        <span class="status-icon failure">✗</span>
+                        {% elif pr.review_status == 'review_required' %}
+                        <span class="status-icon pending">●</span>
+                        {% else %}
+                        <span class="status-icon none">○</span>
+                        {% endif %}
+                    </span>
+                    <span class="pr-changes">
+                        {% if pr.additions %}<span class="additions">+{{ pr.additions }}</span>{% endif %}
+                        {% if pr.deletions %}<span class="deletions">-{{ pr.deletions }}</span>{% endif %}
+                        {% if not pr.additions and not pr.deletions %}—{% endif %}
+                    </span>
+                    <span class="pr-updated">{{ pr.updated_at }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <div>No open PRs</div>
+        </div>
+    {% endif %}
+</section>
+
+<!-- Review Requests Section -->
+<section class="section review-section">
+    <div class="section-header">
+        <span class="section-icon">👀</span>
+        <span class="section-title">Needs My Review</span>
+        <span class="section-count">{{ review_requests|length }}</span>
+    </div>
+
+    {% if review_requests %}
+    <div class="repo-group">
+        <div class="pr-list" style="border-radius: 6px; border-top: 1px solid var(--border);">
+            {% for pr in review_requests %}
+            <a href="{{ pr.url }}" target="_blank" class="pr-item">
+                <span class="pr-number">#{{ pr.number }}</span>
+                <span class="pr-repo">{{ pr.repo.split('/')[-1] }}</span>
+                <span class="pr-title {% if pr.draft %}draft{% endif %}">
+                    {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
+                    {{ pr.title }}
+                </span>
+                <span class="pr-author">{{ pr.author }}</span>
+                <span class="pr-ci">
+                    {% if pr.ci_status == 'success' %}
+                    <span class="status-icon success">✓</span>
+                    {% elif pr.ci_status == 'failure' %}
+                    <span class="status-icon failure">✗</span>
+                    {% elif pr.ci_status == 'pending' %}
+                    <span class="status-icon pending">◐</span>
+                    {% else %}
+                    <span class="status-icon none">○</span>
+                    {% endif %}
+                </span>
+                <span class="pr-review">
+                    {% if pr.review_status == 'approved' %}
+                    <span class="status-icon success">✓</span>
+                    {% elif pr.review_status == 'changes_requested' %}
+                    <span class="status-icon failure">✗</span>
+                    {% elif pr.review_status == 'review_required' %}
+                    <span class="status-icon pending">●</span>
+                    {% else %}
+                    <span class="status-icon none">○</span>
+                    {% endif %}
+                </span>
+                <span class="pr-changes">
+                    {% if pr.additions %}<span class="additions">+{{ pr.additions }}</span>{% endif %}
+                    {% if pr.deletions %}<span class="deletions">-{{ pr.deletions }}</span>{% endif %}
+                    {% if not pr.additions and not pr.deletions %}—{% endif %}
+                </span>
+                <span class="pr-updated">{{ pr.updated_at }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">✨</div>
+            <div>No pending reviews</div>
+        </div>
+    {% endif %}
+</section>

@@ -1,0 +1,13 @@
+<div class="sync-status">
+    <div class="sync-indicator {% if sync_status.get('is_syncing') %}syncing{% endif %}"></div>
+    {% if sync_status.get('is_syncing') %}
+        <span>Syncing...</span>
+    {% elif sync_status.get('last_sync') %}
+        <span>Last sync: {{ sync_status.get('last_sync', '')[:19].replace('T', ' ') }}</span>
+    {% else %}
+        <span>Not synced yet</span>
+    {% endif %}
+    {% if sync_status.get('error') %}
+        <span style="color: var(--error);">⚠ {{ sync_status.get('error')[:50] }}</span>
+    {% endif %}
+</div>

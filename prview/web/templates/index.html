@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>prview</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
+    <style>
+        /* VS Code / Atom inspired dark theme */
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --bg-hover: #37373d;
+            --bg-selected: #094771;
+            --border: #3c3c3c;
+            --text-primary: #cccccc;
+            --text-secondary: #858585;
+            --text-muted: #6e6e6e;
+            --accent-blue: #569cd6;
+            --accent-cyan: #4ec9b0;
+            --accent-green: #6a9955;
+            --accent-yellow: #dcdcaa;
+            --accent-orange: #ce9178;
+            --accent-purple: #c586c0;
+            --accent-red: #f14c4c;
+            --success: #89d185;
+            --warning: #cca700;
+            --error: #f14c4c;
+            --info: #3794ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .logo-icon {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sync-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .sync-indicator.syncing {
+            background: var(--warning);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-blue);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Main content */
+        .main {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: 24px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            padding: 8px 0;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+
+        .section-count {
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .section-icon {
+            font-size: 14px;
+        }
+
+        /* Repo group */
+        .repo-group {
+            margin-bottom: 16px;
+        }
+
+        .repo-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px 6px 0 0;
+            font-size: 12px;
+            color: var(--accent-cyan);
+        }
+
+        .repo-icon {
+            opacity: 0.7;
+        }
+
+        /* PR list */
+        .pr-list {
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            overflow: hidden;
+        }
+
+        .pr-item {
+            display: grid;
+            grid-template-columns: 70px 1fr 100px 50px 50px 90px 80px;
+            gap: 12px;
+            padding: 10px 12px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+            transition: background 0.1s ease;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .pr-item:last-child {
+            border-bottom: none;
+        }
+
+        .pr-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .pr-number {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--accent-blue);
+        }
+
+        .pr-title {
+            font-size: 13px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .pr-title.draft {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .pr-draft-badge {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-right: 6px;
+        }
+
+        .pr-author {
+            font-size: 12px;
+            color: var(--accent-purple);
+        }
+
+        .pr-ci, .pr-review {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-icon {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 11px;
+        }
+
+        .status-icon.success { background: rgba(137, 209, 133, 0.2); color: var(--success); }
+        .status-icon.failure { background: rgba(241, 76, 76, 0.2); color: var(--error); }
+        .status-icon.pending { background: rgba(204, 167, 0, 0.2); color: var(--warning); }
+        .status-icon.none { background: var(--bg-tertiary); color: var(--text-muted); }
+
+        .pr-changes {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 11px;
+            display: flex;
+            gap: 6px;
+        }
+
+        .additions { color: var(--success); }
+        .deletions { color: var(--error); }
+
+        .pr-updated {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Review requests section */
+        .review-section .pr-item {
+            grid-template-columns: 70px 150px 1fr 100px 50px 50px 90px 80px;
+        }
+
+        .pr-repo {
+            font-size: 12px;
+            color: var(--accent-cyan);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Empty state */
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .empty-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        /* Loading */
+        .htmx-request .loading-overlay {
+            display: flex;
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            gap: 24px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .legend-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .legend-label {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Keyboard shortcuts */
+        kbd {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .pr-item {
+                grid-template-columns: 60px 1fr 40px 40px 80px;
+            }
+            .pr-author, .pr-changes {
+                display: none;
+            }
+            .review-section .pr-item {
+                grid-template-columns: 60px 120px 1fr 40px 40px 80px;
+            }
+        }
+    </style>
+</head>
+<body hx-ext="sse" sse-connect="/events">
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">⎔</div>
+            <span>prview</span>
+        </div>
+        <div class="status-bar">
+            <div id="sync-status" hx-get="/partials/status" hx-trigger="sse:update" hx-swap="innerHTML">
+                {% include "partials/status.html" %}
+            </div>
+            <button class="btn" hx-post="/sync" hx-swap="none">
+                <span>↻</span> Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="main">
+        <!-- Legend -->
+        <div class="legend">
+            <div class="legend-group">
+                <span class="legend-label">CI:</span>
+                <span class="legend-item"><span class="status-icon success">✓</span> pass</span>
+                <span class="legend-item"><span class="status-icon failure">✗</span> fail</span>
+                <span class="legend-item"><span class="status-icon pending">◐</span> running</span>
+                <span class="legend-item"><span class="status-icon none">○</span> none</span>
+            </div>
+            <div class="legend-group">
+                <span class="legend-label">Review:</span>
+                <span class="legend-item"><span class="status-icon success">✓</span> approved</span>
+                <span class="legend-item"><span class="status-icon failure">✗</span> changes</span>
+                <span class="legend-item"><span class="status-icon pending">●</span> required</span>
+                <span class="legend-item"><span class="status-icon none">○</span> pending</span>
+            </div>
+        </div>
+
+        <!-- PR content -->
+        <div id="pr-content" hx-get="/partials/prs" hx-trigger="sse:update" hx-swap="innerHTML">
+            {% include "partials/prs.html" %}
+        </div>
+    </main>
+
+    <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+</body>
+</html>
