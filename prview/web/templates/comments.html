@@ -1,0 +1,607 @@
+{% extends "base.html" %}
+
+{% block title %}prview - Address Comments - {{ repo }}#{{ number }}{% endblock %}
+
+{% block nav_dashboard %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .comments-main {
+        max-width: 960px;
+    }
+
+    /* PR header bar */
+    .pr-header-bar {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .pr-header-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .pr-header-repo {
+        color: var(--accent-cyan);
+        font-size: 13px;
+    }
+
+    .pr-header-title {
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .pr-header-links {
+        display: flex;
+        gap: 8px;
+    }
+
+    /* Progress bar */
+    .progress-bar {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 16px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .progress-dots {
+        display: flex;
+        gap: 6px;
+    }
+
+    .progress-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .progress-dot.current {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+    }
+
+    .progress-dot.addressed {
+        background: var(--success);
+        border-color: var(--success);
+    }
+
+    .progress-dot.skipped {
+        background: var(--text-muted);
+        border-color: var(--text-muted);
+    }
+
+    /* Comment card */
+    .comment-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+
+    .comment-file {
+        padding: 10px 16px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border);
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
+        color: var(--accent-yellow);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .comment-file-line {
+        color: var(--text-secondary);
+    }
+
+    /* Diff hunk */
+    .diff-hunk {
+        background: var(--bg-primary);
+        border-bottom: 1px solid var(--border);
+        padding: 0;
+        overflow-x: auto;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .diff-line {
+        padding: 0 12px;
+        white-space: pre;
+    }
+
+    .diff-line.add {
+        background: rgba(137, 209, 133, 0.1);
+        color: var(--success);
+    }
+
+    .diff-line.remove {
+        background: rgba(241, 76, 76, 0.1);
+        color: var(--error);
+    }
+
+    .diff-line.hunk-header {
+        background: rgba(86, 156, 214, 0.1);
+        color: var(--accent-blue);
+    }
+
+    /* Reviewer comment */
+    .reviewer-comment {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .reviewer-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 12px;
+    }
+
+    .reviewer-name {
+        color: var(--accent-purple);
+        font-weight: 600;
+    }
+
+    .reviewer-date {
+        color: var(--text-muted);
+    }
+
+    .reviewer-body {
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        color: var(--text-primary);
+    }
+
+    /* Draft reply area */
+    .draft-area {
+        padding: 16px;
+    }
+
+    .draft-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .draft-textarea {
+        width: 100%;
+        min-height: 120px;
+        padding: 12px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 13px;
+        line-height: 1.6;
+        resize: vertical;
+    }
+
+    .draft-textarea:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .draft-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        justify-content: flex-end;
+    }
+
+    .btn-success {
+        background: var(--accent-green);
+        border-color: var(--accent-green);
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: #5a8a48;
+    }
+
+    /* Navigation buttons */
+    .comment-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .comment-nav-group {
+        display: flex;
+        gap: 8px;
+    }
+
+    /* Streaming indicator */
+    .draft-streaming {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        padding: 8px 0;
+    }
+
+    .draft-streaming.active {
+        display: flex;
+    }
+
+    .streaming-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--accent-blue);
+        border-radius: 50%;
+        animation: pulse 1s infinite;
+    }
+
+    /* All done state */
+    .all-done {
+        text-align: center;
+        padding: 60px 40px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+
+    .all-done-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+    }
+
+    .all-done-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .all-done-summary {
+        color: var(--text-secondary);
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block main_class %}comments-main{% endblock %}
+
+{% block content %}
+    <!-- PR Header -->
+    <div class="pr-header-bar">
+        <div class="pr-header-info">
+            <span class="pr-header-repo">{{ repo }}#{{ number }}</span>
+            <span class="pr-header-title" id="pr-title">{{ pr_title }}</span>
+        </div>
+        <div class="pr-header-links">
+            <a href="/" class="btn btn-sm">&#x2190; Dashboard</a>
+            <a href="{{ pr_url }}" target="_blank" class="btn btn-sm">View on GitHub</a>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-bar" id="progress-bar">
+        <span id="progress-text">Loading comments...</span>
+        <div class="progress-dots" id="progress-dots"></div>
+    </div>
+
+    <!-- Comment display area -->
+    <div id="comment-area">
+        <div class="empty-state">
+            <div class="empty-icon">&#x1F4DD;</div>
+            <div>Loading review comments...</div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="comment-nav" id="comment-nav" style="display: none;">
+        <div class="comment-nav-group">
+            <button class="btn" id="prev-btn" disabled>&#x2190; Previous</button>
+        </div>
+        <div class="comment-nav-group">
+            <button class="btn" id="skip-btn">Skip</button>
+            <button class="btn" id="next-btn">Next &#x2192;</button>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const commentArea = document.getElementById('comment-area');
+    const progressText = document.getElementById('progress-text');
+    const progressDots = document.getElementById('progress-dots');
+    const commentNav = document.getElementById('comment-nav');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const skipBtn = document.getElementById('skip-btn');
+
+    let comments = [];
+    let currentIndex = 0;
+    let commentStates = {}; // comment_id -> 'addressed' | 'skipped' | null
+    let isStreaming = false;
+
+    const repo = {{ repo | tojson }};
+    const number = {{ number | tojson }};
+
+    // Load comments
+    async function loadComments() {
+        try {
+            const resp = await fetch(`/api/pr/${repo}/${number}/comments`);
+            const data = await resp.json();
+            comments = data.comments || [];
+
+            if (comments.length === 0) {
+                commentArea.innerHTML = `
+                    <div class="all-done">
+                        <div class="all-done-icon">&#x2728;</div>
+                        <div class="all-done-title">No review comments</div>
+                        <div class="all-done-summary">This PR has no review comments to address.</div>
+                        <a href="/" class="btn btn-primary">Back to Dashboard</a>
+                    </div>`;
+                return;
+            }
+
+            // Build progress dots
+            progressDots.innerHTML = '';
+            comments.forEach((c, i) => {
+                const dot = document.createElement('div');
+                dot.className = 'progress-dot';
+                dot.title = `Comment ${i + 1}`;
+                dot.addEventListener('click', () => goToComment(i));
+                progressDots.appendChild(dot);
+            });
+
+            commentNav.style.display = 'flex';
+            showComment(0);
+        } catch (err) {
+            commentArea.innerHTML = `
+                <div class="alert error">
+                    Failed to load comments: ${err.message}
+                </div>`;
+        }
+    }
+
+    function goToComment(index) {
+        if (index < 0 || index >= comments.length || isStreaming) return;
+        currentIndex = index;
+        showComment(index);
+    }
+
+    function showComment(index) {
+        const comment = comments[index];
+        currentIndex = index;
+
+        // Update progress
+        progressText.textContent = `Comment ${index + 1} of ${comments.length}`;
+        const dots = progressDots.querySelectorAll('.progress-dot');
+        dots.forEach((dot, i) => {
+            dot.className = 'progress-dot';
+            if (i === index) dot.classList.add('current');
+            else if (commentStates[comments[i].id] === 'addressed') dot.classList.add('addressed');
+            else if (commentStates[comments[i].id] === 'skipped') dot.classList.add('skipped');
+        });
+
+        // Update nav buttons
+        prevBtn.disabled = index === 0;
+        nextBtn.disabled = index === comments.length - 1;
+
+        // Build diff lines
+        let diffHtml = '';
+        if (comment.diff_hunk) {
+            const lines = comment.diff_hunk.split('\n');
+            diffHtml = lines.map(line => {
+                let cls = '';
+                if (line.startsWith('+')) cls = 'add';
+                else if (line.startsWith('-')) cls = 'remove';
+                else if (line.startsWith('@@')) cls = 'hunk-header';
+                return `<div class="diff-line ${cls}">${escapeHtml(line)}</div>`;
+            }).join('');
+        }
+
+        const stateLabel = commentStates[comment.id]
+            ? ` <span class="status-badge ${commentStates[comment.id] === 'addressed' ? 'success' : 'warning'}">${commentStates[comment.id]}</span>`
+            : '';
+
+        commentArea.innerHTML = `
+            <div class="comment-card">
+                <div class="comment-file">
+                    &#x1F4C4; ${escapeHtml(comment.path || 'unknown')}
+                    ${comment.line ? `<span class="comment-file-line">:${comment.line}</span>` : ''}
+                    ${stateLabel}
+                </div>
+                ${diffHtml ? `<div class="diff-hunk">${diffHtml}</div>` : ''}
+                <div class="reviewer-comment">
+                    <div class="reviewer-info">
+                        <span class="reviewer-name">${escapeHtml(comment.user)}</span>
+                        <span class="reviewer-date">${comment.created_at || ''}</span>
+                    </div>
+                    <div class="reviewer-body">${escapeHtml(comment.body)}</div>
+                </div>
+                <div class="draft-area">
+                    <div class="draft-label">
+                        &#x1F4DD; Draft Reply
+                        <button class="btn btn-sm" id="generate-btn" onclick="generateDraft()">Generate with AI</button>
+                    </div>
+                    <div class="draft-streaming" id="draft-streaming">
+                        <span class="streaming-dot"></span>
+                        <span>AI is drafting a reply...</span>
+                    </div>
+                    <textarea class="draft-textarea" id="draft-textarea" placeholder="Write your reply or click 'Generate with AI'..."></textarea>
+                    <div class="draft-actions">
+                        <button class="btn" onclick="generateDraft()">&#x21bb; Regenerate</button>
+                        <button class="btn btn-success" onclick="submitReply()">&#x2713; Submit Reply</button>
+                    </div>
+                </div>
+            </div>`;
+
+        // Auto-generate draft if not already addressed
+        if (!commentStates[comment.id]) {
+            generateDraft();
+        }
+    }
+
+    async function generateDraft() {
+        if (isStreaming) return;
+        const comment = comments[currentIndex];
+        const textarea = document.getElementById('draft-textarea');
+        const streaming = document.getElementById('draft-streaming');
+        const genBtn = document.getElementById('generate-btn');
+
+        isStreaming = true;
+        textarea.value = '';
+        streaming.classList.add('active');
+        if (genBtn) genBtn.disabled = true;
+
+        try {
+            const resp = await fetch(`/pr/${repo}/${number}/comments/${comment.id}/draft`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    path: comment.path,
+                    diff_hunk: comment.diff_hunk,
+                    body: comment.body,
+                    user: comment.user,
+                }),
+            });
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    let event;
+                    try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+                    if (event.type === 'text') {
+                        textarea.value += event.content;
+                    } else if (event.type === 'done') {
+                        break;
+                    } else if (event.type === 'error') {
+                        textarea.value += '\n[Error: ' + event.content + ']';
+                    }
+                }
+            }
+        } catch (err) {
+            textarea.value = '[Failed to generate draft: ' + err.message + ']';
+        }
+
+        isStreaming = false;
+        streaming.classList.remove('active');
+        if (genBtn) genBtn.disabled = false;
+    }
+
+    async function submitReply() {
+        const comment = comments[currentIndex];
+        const textarea = document.getElementById('draft-textarea');
+        const body = textarea.value.trim();
+
+        if (!body) {
+            alert('Reply cannot be empty.');
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/pr/${repo}/${number}/comments/${comment.id}/reply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body }),
+            });
+
+            const data = await resp.json();
+            if (data.error) {
+                alert('Failed to submit reply: ' + data.error);
+                return;
+            }
+
+            commentStates[comment.id] = 'addressed';
+            advanceToNext();
+        } catch (err) {
+            alert('Failed to submit reply: ' + err.message);
+        }
+    }
+
+    function advanceToNext() {
+        // Find next unaddressed comment
+        for (let i = currentIndex + 1; i < comments.length; i++) {
+            if (!commentStates[comments[i].id]) {
+                goToComment(i);
+                return;
+            }
+        }
+        // All done or at end
+        showAllDone();
+    }
+
+    function showAllDone() {
+        const addressed = Object.values(commentStates).filter(s => s === 'addressed').length;
+        const skipped = Object.values(commentStates).filter(s => s === 'skipped').length;
+
+        commentArea.innerHTML = `
+            <div class="all-done">
+                <div class="all-done-icon">&#x2705;</div>
+                <div class="all-done-title">All comments addressed!</div>
+                <div class="all-done-summary">
+                    ${addressed} replied, ${skipped} skipped, ${comments.length} total
+                </div>
+                <a href="/" class="btn btn-primary">Back to Dashboard</a>
+            </div>`;
+        commentNav.style.display = 'none';
+
+        // Update progress dots
+        const dots = progressDots.querySelectorAll('.progress-dot');
+        dots.forEach((dot, i) => {
+            dot.className = 'progress-dot';
+            if (commentStates[comments[i].id] === 'addressed') dot.classList.add('addressed');
+            else if (commentStates[comments[i].id] === 'skipped') dot.classList.add('skipped');
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    prevBtn.addEventListener('click', () => goToComment(currentIndex - 1));
+    nextBtn.addEventListener('click', () => goToComment(currentIndex + 1));
+    skipBtn.addEventListener('click', () => {
+        const comment = comments[currentIndex];
+        commentStates[comment.id] = 'skipped';
+        advanceToNext();
+    });
+
+    // Load on page ready
+    loadComments();
+</script>
+{% endblock %}

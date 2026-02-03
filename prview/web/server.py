@@ -18,9 +18,16 @@ from typing import Optional, AsyncGenerator
 
 import yaml
 from fastapi import FastAPI, Request, BackgroundTasks
-from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+from prview.web.claude_cli import (
+    CLAUDE_MODELS,
+    DEFAULT_MODEL,
+    check_claude_available,
+    stream_claude_response,
+)
 
 # Paths
 CONFIG_PATH = Path.home() / ".config" / "prview" / "config.yaml"
@@ -564,6 +571,8 @@ async def settings_page(request: Request):
     env_vars = get_env_vars_status()
     config = load_config()
 
+    claude_status = check_claude_available()
+
     return templates.TemplateResponse(
         "settings.html",
         {
@@ -572,6 +581,8 @@ async def settings_page(request: Request):
             "env_vars": env_vars,
             "config": config,
             "config_path": str(CONFIG_PATH),
+            "claude_status": claude_status,
+            "claude_models": CLAUDE_MODELS,
         },
     )
 
@@ -595,6 +606,8 @@ async def save_settings(request: Request):
         repo.strip() for repo in form_data.get("exclude_repos", "").split("\n") if repo.strip()
     ]
 
+    claude_model = form_data.get("claude_model", "").strip()
+
     config_data = {
         "include_orgs": include_orgs,
         "exclude_orgs": exclude_orgs,
@@ -603,6 +616,7 @@ async def save_settings(request: Request):
         "refresh_interval": int(form_data.get("refresh_interval", 60)),
         "show_drafts": form_data.get("show_drafts") == "on",
         "max_prs_per_repo": int(form_data.get("max_prs_per_repo", 10)),
+        "claude_model": claude_model if claude_model else DEFAULT_MODEL,
     }
 
     save_config(config_data)
@@ -614,6 +628,464 @@ async def save_settings(request: Request):
 async def api_auth_status():
     """JSON API for auth status."""
     return get_gh_auth_status()
+
+
+# --- Chat routes ---
+
+
+def build_pr_context_prompt(pr_data: dict) -> str:
+    """Build a system prompt with PR context from the database."""
+    lines = [
+        "You are a helpful AI assistant integrated into prview, a GitHub PR dashboard.",
+        "You have context about the user's current pull requests.",
+        "",
+    ]
+
+    my_prs = pr_data.get("my_prs", {})
+    review_requests = pr_data.get("review_requests", [])
+
+    if my_prs:
+        lines.append("## User's Open Pull Requests")
+        count = 0
+        for repo, prs in my_prs.items():
+            for pr in prs:
+                if count >= 50:
+                    break
+                draft_label = " [DRAFT]" if pr.get("draft") else ""
+                lines.append(
+                    f"- {repo}#{pr['number']}: {pr['title']}{draft_label} "
+                    f"(CI: {pr.get('ci_status', 'unknown')}, "
+                    f"Review: {pr.get('review_status', 'unknown')}, "
+                    f"+{pr.get('additions', 0)}/-{pr.get('deletions', 0)})"
+                )
+                count += 1
+
+    if review_requests:
+        lines.append("")
+        lines.append("## Review Requests (PRs requesting user's review)")
+        for pr in review_requests[:50]:
+            lines.append(
+                f"- {pr['repo']}#{pr['number']}: {pr['title']} by {pr['author']} "
+                f"(CI: {pr.get('ci_status', 'unknown')})"
+            )
+
+    return "\n".join(lines)
+
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page(request: Request):
+    """Chat page with Claude AI assistant."""
+    claude_status = check_claude_available()
+    config = load_config()
+    selected_model = config.get("claude_model", DEFAULT_MODEL)
+
+    return templates.TemplateResponse(
+        "chat.html",
+        {
+            "request": request,
+            "claude_status": claude_status,
+            "claude_models": CLAUDE_MODELS,
+            "selected_model": selected_model,
+        },
+    )
+
+
+@app.post("/chat/send")
+async def chat_send(request: Request):
+    """SSE endpoint that streams Claude CLI responses."""
+    form_data = await request.form()
+    message = form_data.get("message", "").strip()
+    model = form_data.get("model", DEFAULT_MODEL)
+
+    if not message:
+        return JSONResponse({"error": "Message is required"}, status_code=400)
+
+    # Build PR context system prompt
+    pr_data = get_prs_from_db()
+    system_prompt = build_pr_context_prompt(pr_data)
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        async for chunk in stream_claude_response(
+            message, model=model, system_prompt=system_prompt
+        ):
+            data = json.dumps(chunk)
+            yield f"data: {data}\n\n"
+        yield 'data: {"type": "done"}\n\n'
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/claude-status")
+async def api_claude_status():
+    """JSON endpoint for Claude CLI availability."""
+    return check_claude_available()
+
+
+# --- Comments routes (Issue #3) ---
+
+
+def get_pr_review_comments(repo: str, number: int) -> list[dict]:
+    """Fetch review comments for a PR via gh api."""
+    output = run_gh(
+        [
+            "api",
+            f"/repos/{repo}/pulls/{number}/comments",
+            "--paginate",
+            "--jq",
+            ".[] | {id, path, line: (.line // .original_line), diff_hunk, body, user: .user.login, created_at: .created_at, in_reply_to_id}",
+        ],
+        timeout=30,
+    )
+    if not output:
+        return []
+
+    comments = []
+    for line in output.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            comments.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
+    # Filter to only top-level comments (not replies)
+    top_level = [c for c in comments if not c.get("in_reply_to_id")]
+    return top_level
+
+
+def post_comment_reply(repo: str, number: int, comment_id: int, body: str) -> bool:
+    """Post a reply to a review comment via gh api."""
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                "-X",
+                "POST",
+                f"/repos/{repo}/pulls/{number}/comments",
+                "-f",
+                f"body={body}",
+                "-F",
+                f"in_reply_to={comment_id}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+    except FileNotFoundError:
+        return False
+
+
+def get_pr_basic_info(repo: str, number: int) -> dict:
+    """Get basic PR info (title, url)."""
+    output = run_gh(
+        [
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            repo,
+            "--json",
+            "title,url",
+        ]
+    )
+    if not output:
+        return {"title": f"PR #{number}", "url": f"https://github.com/{repo}/pull/{number}"}
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError:
+        return {"title": f"PR #{number}", "url": f"https://github.com/{repo}/pull/{number}"}
+
+
+@app.get("/pr/{repo:path}/{number:int}/comments", response_class=HTMLResponse)
+async def comments_page(request: Request, repo: str, number: int):
+    """Address reviewer comments page."""
+    pr_info = get_pr_basic_info(repo, number)
+    return templates.TemplateResponse(
+        "comments.html",
+        {
+            "request": request,
+            "repo": repo,
+            "number": number,
+            "pr_title": pr_info.get("title", f"PR #{number}"),
+            "pr_url": pr_info.get("url", f"https://github.com/{repo}/pull/{number}"),
+        },
+    )
+
+
+@app.get("/api/pr/{repo:path}/{number:int}/comments")
+async def api_pr_comments(repo: str, number: int):
+    """JSON API to fetch review comments."""
+    comments = get_pr_review_comments(repo, number)
+    return {"comments": comments}
+
+
+@app.post("/pr/{repo:path}/{number:int}/comments/{comment_id:int}/draft")
+async def draft_comment_reply(request: Request, repo: str, number: int, comment_id: int):
+    """SSE endpoint to stream an AI-drafted reply to a review comment."""
+    body_data = await request.json()
+
+    comment_context = (
+        f"You are helping a developer reply to a code review comment on GitHub.\n\n"
+        f"File: {body_data.get('path', 'unknown')}\n\n"
+        f"Diff context:\n```\n{body_data.get('diff_hunk', '')}\n```\n\n"
+        f"Reviewer ({body_data.get('user', 'reviewer')}) wrote:\n{body_data.get('body', '')}\n\n"
+        f"Draft a concise, professional reply addressing the reviewer's comment. "
+        f"If the reviewer is requesting a change, acknowledge it and describe what you'll do. "
+        f"If it's a question, answer it directly. Keep it brief (1-3 sentences)."
+    )
+
+    config = load_config()
+    model = config.get("claude_model", DEFAULT_MODEL)
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        async for chunk in stream_claude_response(comment_context, model=model):
+            if chunk.get("type") in ("text", "text_start"):
+                data = json.dumps({"type": "text", "content": chunk.get("content", "")})
+                yield f"data: {data}\n\n"
+            elif chunk.get("type") == "error":
+                data = json.dumps({"type": "error", "content": chunk.get("content", "")})
+                yield f"data: {data}\n\n"
+        yield 'data: {"type": "done"}\n\n'
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/pr/{repo:path}/{number:int}/comments/{comment_id:int}/reply")
+async def reply_to_comment(request: Request, repo: str, number: int, comment_id: int):
+    """Submit a reply to a review comment on GitHub."""
+    body_data = await request.json()
+    body = body_data.get("body", "").strip()
+
+    if not body:
+        return JSONResponse({"error": "Reply body is required"}, status_code=400)
+
+    success = post_comment_reply(repo, number, comment_id, body)
+    if success:
+        return {"status": "ok"}
+    return JSONResponse({"error": "Failed to post reply to GitHub"}, status_code=500)
+
+
+# --- Review routes (Issue #4) ---
+
+
+def get_pr_full_data(repo: str, number: int) -> dict:
+    """Get full PR data for review: title, body, author, files, diff."""
+    output = run_gh(
+        [
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            repo,
+            "--json",
+            "title,body,author,files,additions,deletions,url,reviews",
+        ]
+    )
+    pr_data = {
+        "title": f"PR #{number}",
+        "body": "",
+        "author": "",
+        "files": [],
+        "additions": 0,
+        "deletions": 0,
+        "url": f"https://github.com/{repo}/pull/{number}",
+        "diff": "",
+    }
+
+    if output:
+        try:
+            parsed = json.loads(output)
+            pr_data["title"] = parsed.get("title", pr_data["title"])
+            pr_data["body"] = parsed.get("body", "")
+            pr_data["author"] = parsed.get("author", {}).get("login", "unknown")
+            pr_data["additions"] = parsed.get("additions", 0)
+            pr_data["deletions"] = parsed.get("deletions", 0)
+            pr_data["url"] = parsed.get("url", pr_data["url"])
+
+            files = parsed.get("files", [])
+            pr_data["files"] = [
+                {
+                    "path": f.get("path", ""),
+                    "additions": f.get("additions", 0),
+                    "deletions": f.get("deletions", 0),
+                    "status": f.get("status", "modified"),
+                }
+                for f in files[:50]
+            ]
+        except json.JSONDecodeError:
+            pass
+
+    # Get diff (sampled)
+    diff_output = run_gh(
+        ["pr", "diff", str(number), "--repo", repo],
+        timeout=30,
+    )
+    if diff_output:
+        # Sample diff: limit to ~8000 chars to stay within token limits
+        if len(diff_output) > 8000:
+            pr_data["diff"] = diff_output[:8000] + "\n... [diff truncated]"
+        else:
+            pr_data["diff"] = diff_output
+
+    return pr_data
+
+
+def build_review_prompt(pr_data: dict, conversation: list[dict]) -> str:
+    """Build a prompt for AI-assisted PR review."""
+    parts = [
+        "You are an expert code reviewer. Review the following pull request thoroughly.",
+        "Focus on: bugs, security issues, performance, code quality, and design.",
+        "Be constructive and specific. Reference file paths and line numbers when possible.",
+        "Format your review in markdown with sections.",
+        "",
+        f"## PR: {pr_data.get('title', 'Unknown')}",
+        f"Author: {pr_data.get('author', 'unknown')}",
+        f"Files: {len(pr_data.get('files', []))} | +{pr_data.get('additions', 0)}/-{pr_data.get('deletions', 0)}",
+        "",
+    ]
+
+    if pr_data.get("body"):
+        parts.append("### PR Description")
+        parts.append(pr_data["body"][:2000])
+        parts.append("")
+
+    if pr_data.get("diff"):
+        parts.append("### Diff")
+        parts.append("```diff")
+        parts.append(pr_data["diff"])
+        parts.append("```")
+        parts.append("")
+
+    # Add conversation context
+    if conversation:
+        parts.append("### Previous conversation")
+        for msg in conversation:
+            role = "User" if msg["role"] == "user" else "AI"
+            parts.append(f"**{role}**: {msg['content'][:1000]}")
+        parts.append("")
+        parts.append("Generate an updated review incorporating the user's feedback.")
+
+    return "\n".join(parts)
+
+
+def submit_pr_review(repo: str, number: int, body: str, event: str) -> bool:
+    """Submit a review to GitHub via gh pr review."""
+    flag_map = {
+        "COMMENT": "--comment",
+        "APPROVE": "--approve",
+        "REQUEST_CHANGES": "--request-changes",
+    }
+    flag = flag_map.get(event, "--comment")
+
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "review",
+                str(number),
+                "--repo",
+                repo,
+                flag,
+                "--body",
+                body,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+    except FileNotFoundError:
+        return False
+
+
+@app.get("/pr/{repo:path}/{number:int}/review", response_class=HTMLResponse)
+async def review_page(request: Request, repo: str, number: int):
+    """AI-assisted PR review page."""
+    pr_data = get_pr_full_data(repo, number)
+    config = load_config()
+    selected_model = config.get("claude_model", DEFAULT_MODEL)
+
+    return templates.TemplateResponse(
+        "review.html",
+        {
+            "request": request,
+            "repo": repo,
+            "number": number,
+            "pr_data": pr_data,
+            "claude_models": CLAUDE_MODELS,
+            "selected_model": selected_model,
+        },
+    )
+
+
+@app.post("/pr/{repo:path}/{number:int}/review/generate")
+async def generate_review(request: Request, repo: str, number: int):
+    """SSE endpoint to stream AI-generated review."""
+    body_data = await request.json()
+    conversation = body_data.get("conversation", [])
+    model = body_data.get("model", DEFAULT_MODEL)
+
+    pr_data = get_pr_full_data(repo, number)
+    prompt = build_review_prompt(pr_data, conversation)
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        async for chunk in stream_claude_response(prompt, model=model):
+            data = json.dumps(chunk)
+            yield f"data: {data}\n\n"
+        yield 'data: {"type": "done"}\n\n'
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/pr/{repo:path}/{number:int}/review/submit")
+async def submit_review(request: Request, repo: str, number: int):
+    """Submit a review to GitHub."""
+    body_data = await request.json()
+    body = body_data.get("body", "").strip()
+    event = body_data.get("event", "COMMENT")
+
+    if not body:
+        return JSONResponse({"error": "Review body is required"}, status_code=400)
+
+    if event not in ("COMMENT", "APPROVE", "REQUEST_CHANGES"):
+        return JSONResponse({"error": "Invalid review event type"}, status_code=400)
+
+    success = submit_pr_review(repo, number, body, event)
+    if success:
+        return {"status": "ok"}
+    return JSONResponse({"error": "Failed to submit review to GitHub"}, status_code=500)
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8420):

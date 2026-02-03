@@ -1,603 +1,227 @@
-<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>prview - Settings</title>
+{% extends "base.html" %}
+
+{% block title %}prview - Settings{% endblock %}
+
+{% block extra_head %}
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <style>
-        /* VS Code / Atom inspired dark theme */
-        :root {
-            --bg-primary: #1e1e1e;
-            --bg-secondary: #252526;
-            --bg-tertiary: #2d2d30;
-            --bg-hover: #37373d;
-            --bg-selected: #094771;
-            --border: #3c3c3c;
-            --text-primary: #cccccc;
-            --text-secondary: #858585;
-            --text-muted: #6e6e6e;
-            --accent-blue: #569cd6;
-            --accent-cyan: #4ec9b0;
-            --accent-green: #6a9955;
-            --accent-yellow: #dcdcaa;
-            --accent-orange: #ce9178;
-            --accent-purple: #c586c0;
-            --accent-red: #f14c4c;
-            --success: #89d185;
-            --warning: #cca700;
-            --error: #f14c4c;
-            --info: #3794ff;
-        }
+{% endblock %}
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+{% block nav_settings %}active{% endblock %}
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            font-size: 13px;
-            line-height: 1.5;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-        }
+{% block main_attrs %}style="max-width: 900px;"{% endblock %}
 
-        /* Header */
-        .header {
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
+{% block content %}
+    <h1 class="page-title">&#x2699;&#xFE0F; Settings</h1>
 
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 600;
-            font-size: 15px;
-            text-decoration: none;
-            color: inherit;
-        }
+    {% if request.query_params.get('saved') %}
+    <div class="alert success">
+        &#x2713; Settings saved successfully! Changes will take effect on the next sync.
+    </div>
+    {% endif %}
 
-        .logo-icon {
-            width: 24px;
-            height: 24px;
-            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 16px;
-        }
-
-        .nav-link {
-            color: var(--text-secondary);
-            text-decoration: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            transition: all 0.15s ease;
-        }
-
-        .nav-link:hover {
-            color: var(--text-primary);
-            background: var(--bg-tertiary);
-        }
-
-        .nav-link.active {
-            color: var(--accent-cyan);
-            background: var(--bg-tertiary);
-        }
-
-        /* Main content */
-        .main {
-            padding: 20px;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        .page-title {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 24px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        /* Cards */
-        .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            margin-bottom: 20px;
-            overflow: hidden;
-        }
-
-        .card-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .card-body {
-            padding: 20px;
-        }
-
-        /* Status indicators */
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .status-badge.success {
-            background: rgba(137, 209, 133, 0.2);
-            color: var(--success);
-        }
-
-        .status-badge.error {
-            background: rgba(241, 76, 76, 0.2);
-            color: var(--error);
-        }
-
-        .status-badge.warning {
-            background: rgba(204, 167, 0, 0.2);
-            color: var(--warning);
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: currentColor;
-        }
-
-        /* Auth info */
-        .auth-info {
-            display: grid;
-            gap: 12px;
-        }
-
-        .auth-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .auth-label {
-            color: var(--text-secondary);
-            min-width: 100px;
-        }
-
-        .auth-value {
-            color: var(--text-primary);
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-        }
-
-        .auth-value.username {
-            color: var(--accent-purple);
-        }
-
-        .auth-value.hostname {
-            color: var(--accent-cyan);
-        }
-
-        .scopes-list {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-
-        .scope-tag {
-            background: var(--bg-tertiary);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            color: var(--accent-yellow);
-        }
-
-        /* Environment variables */
-        .env-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .env-table th,
-        .env-table td {
-            padding: 10px 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .env-table th {
-            color: var(--text-secondary);
-            font-weight: 500;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .env-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .env-name {
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-            color: var(--accent-blue);
-        }
-
-        .env-desc {
-            color: var(--text-secondary);
-            font-size: 12px;
-        }
-
-        .env-value {
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-            font-size: 12px;
-        }
-
-        .env-set {
-            color: var(--success);
-        }
-
-        .env-unset {
-            color: var(--text-muted);
-        }
-
-        /* Form elements */
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-label {
-            display: block;
-            margin-bottom: 6px;
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        .form-hint {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        .form-input,
-        .form-textarea {
-            width: 100%;
-            padding: 8px 12px;
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--text-primary);
-            font-family: inherit;
-            font-size: 13px;
-        }
-
-        .form-input:focus,
-        .form-textarea:focus {
-            outline: none;
-            border-color: var(--accent-blue);
-        }
-
-        .form-textarea {
-            resize: vertical;
-            min-height: 80px;
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .form-checkbox {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-        }
-
-        .form-checkbox input {
-            width: 16px;
-            height: 16px;
-            accent-color: var(--accent-blue);
-        }
-
-        /* Buttons */
-        .btn {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.15s ease;
-        }
-
-        .btn:hover {
-            background: var(--bg-hover);
-            border-color: var(--accent-blue);
-        }
-
-        .btn-primary {
-            background: var(--accent-blue);
-            border-color: var(--accent-blue);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #4a8bc9;
-        }
-
-        /* Alert */
-        .alert {
-            padding: 12px 16px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .alert.success {
-            background: rgba(137, 209, 133, 0.15);
-            border: 1px solid rgba(137, 209, 133, 0.3);
-            color: var(--success);
-        }
-
-        .alert.error {
-            background: rgba(241, 76, 76, 0.15);
-            border: 1px solid rgba(241, 76, 76, 0.3);
-            color: var(--error);
-        }
-
-        .alert.warning {
-            background: rgba(204, 167, 0, 0.15);
-            border: 1px solid rgba(204, 167, 0, 0.3);
-            color: var(--warning);
-        }
-
-        /* Code block */
-        code {
-            background: var(--bg-tertiary);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-            font-size: 12px;
-        }
-
-        .code-block {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 12px;
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-            font-size: 12px;
-            overflow-x: auto;
-        }
-
-        /* Config path */
-        .config-path {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            background: var(--bg-primary);
-            border-radius: 4px;
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
-
-        .config-path-icon {
-            color: var(--accent-yellow);
-        }
-    </style>
-</head>
-<body>
-    <!-- Header -->
-    <header class="header">
-        <a href="/" class="logo">
-            <div class="logo-icon">⎔</div>
-            <span>prview</span>
-        </a>
-        <nav class="nav-links">
-            <a href="/" class="nav-link">Dashboard</a>
-            <a href="/settings" class="nav-link active">Settings</a>
-        </nav>
-    </header>
-
-    <!-- Main content -->
-    <main class="main">
-        <h1 class="page-title">⚙️ Settings</h1>
-
-        {% if request.query_params.get('saved') %}
-        <div class="alert success">
-            ✓ Settings saved successfully! Changes will take effect on the next sync.
+    <!-- GitHub Connection Status -->
+    <div class="card">
+        <div class="card-header">
+            &#x1F517; GitHub Connection
         </div>
-        {% endif %}
-
-        <!-- GitHub Connection Status -->
-        <div class="card">
-            <div class="card-header">
-                🔗 GitHub Connection
-            </div>
-            <div class="card-body">
-                {% if auth_status.authenticated %}
-                <div class="auth-info">
-                    <div class="auth-row">
-                        <span class="auth-label">Status</span>
-                        <span class="status-badge success">
-                            <span class="status-dot"></span>
-                            Connected
-                        </span>
-                    </div>
-                    <div class="auth-row">
-                        <span class="auth-label">Host</span>
-                        <span class="auth-value hostname">{{ auth_status.hostname or 'github.com' }}</span>
-                    </div>
-                    <div class="auth-row">
-                        <span class="auth-label">Username</span>
-                        <span class="auth-value username">{{ auth_status.username or 'Unknown' }}</span>
-                    </div>
-                    {% if auth_status.scopes %}
-                    <div class="auth-row">
-                        <span class="auth-label">Scopes</span>
-                        <div class="scopes-list">
-                            {% for scope in auth_status.scopes %}
-                            <span class="scope-tag">{{ scope }}</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
+        <div class="card-body">
+            {% if auth_status.authenticated %}
+            <div class="auth-info">
+                <div class="auth-row">
+                    <span class="auth-label">Status</span>
+                    <span class="status-badge success">
+                        <span class="status-dot"></span>
+                        Connected
+                    </span>
                 </div>
-                {% else %}
-                <div class="alert error">
-                    {{ auth_status.error or 'Not authenticated' }}
+                <div class="auth-row">
+                    <span class="auth-label">Host</span>
+                    <span class="auth-value hostname">{{ auth_status.hostname or 'github.com' }}</span>
                 </div>
-                <p style="margin-top: 12px; color: var(--text-secondary);">
-                    To authenticate, run this command in your terminal:
-                </p>
-                <div class="code-block" style="margin-top: 8px;">
-                    gh auth login
+                <div class="auth-row">
+                    <span class="auth-label">Username</span>
+                    <span class="auth-value username">{{ auth_status.username or 'Unknown' }}</span>
+                </div>
+                {% if auth_status.scopes %}
+                <div class="auth-row">
+                    <span class="auth-label">Scopes</span>
+                    <div class="scopes-list">
+                        {% for scope in auth_status.scopes %}
+                        <span class="scope-tag">{{ scope }}</span>
+                        {% endfor %}
+                    </div>
                 </div>
                 {% endif %}
             </div>
+            {% else %}
+            <div class="alert error">
+                {{ auth_status.error or 'Not authenticated' }}
+            </div>
+            <p style="margin-top: 12px; color: var(--text-secondary);">
+                To authenticate, run this command in your terminal:
+            </p>
+            <div class="code-block" style="margin-top: 8px;">
+                gh auth login
+            </div>
+            {% endif %}
         </div>
+    </div>
 
-        <!-- Environment Variables -->
-        <div class="card">
-            <div class="card-header">
-                🌍 Environment Variables
+    <!-- Environment Variables -->
+    <div class="card">
+        <div class="card-header">
+            &#x1F30D; Environment Variables
+        </div>
+        <div class="card-body">
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">
+                These environment variables can override the default gh CLI behavior.
+                If not set, gh uses its stored credentials.
+            </p>
+            <table class="env-table">
+                <thead>
+                    <tr>
+                        <th>Variable</th>
+                        <th>Status</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for env in env_vars %}
+                    <tr>
+                        <td><span class="env-name">{{ env.name }}</span></td>
+                        <td>
+                            {% if env.is_set %}
+                            <span class="env-value env-set">{{ env.value_preview }}</span>
+                            {% else %}
+                            <span class="env-value env-unset">Not set</span>
+                            {% endif %}
+                        </td>
+                        <td class="env-desc">{{ env.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Claude AI Assistant -->
+    <div class="card">
+        <div class="card-header">
+            &#x1F4AC; Claude AI Assistant
+        </div>
+        <div class="card-body">
+            <div class="auth-info" style="margin-bottom: 16px;">
+                <div class="auth-row">
+                    <span class="auth-label">Status</span>
+                    {% if claude_status.available %}
+                    <span class="status-badge success">
+                        <span class="status-dot"></span>
+                        Connected (v{{ claude_status.version or 'unknown' }})
+                    </span>
+                    {% else %}
+                    <span class="status-badge error">
+                        <span class="status-dot"></span>
+                        Not Available
+                    </span>
+                    {% endif %}
+                </div>
+                {% if claude_status.path %}
+                <div class="auth-row">
+                    <span class="auth-label">Path</span>
+                    <span class="auth-value" style="color: var(--text-secondary);">{{ claude_status.path }}</span>
+                </div>
+                {% endif %}
+                {% if claude_status.error %}
+                <div class="auth-row">
+                    <span class="auth-label">Error</span>
+                    <span style="color: var(--error);">{{ claude_status.error }}</span>
+                </div>
+                {% endif %}
             </div>
-            <div class="card-body">
-                <p style="margin-bottom: 16px; color: var(--text-secondary);">
-                    These environment variables can override the default gh CLI behavior.
-                    If not set, gh uses its stored credentials.
-                </p>
-                <table class="env-table">
-                    <thead>
-                        <tr>
-                            <th>Variable</th>
-                            <th>Status</th>
-                            <th>Description</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for env in env_vars %}
-                        <tr>
-                            <td><span class="env-name">{{ env.name }}</span></td>
-                            <td>
-                                {% if env.is_set %}
-                                <span class="env-value env-set">{{ env.value_preview }}</span>
-                                {% else %}
-                                <span class="env-value env-unset">Not set</span>
-                                {% endif %}
-                            </td>
-                            <td class="env-desc">{{ env.description }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <p style="margin-bottom: 12px; color: var(--text-secondary);">
+                Default model for the <a href="/chat" style="color: var(--accent-cyan);">Chat</a> page.
+                You can also override the model per-request from the chat interface.
+            </p>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Default Model</label>
+                <select name="claude_model" class="form-input" form="settings-form">
+                    {% for model in claude_models %}
+                    <option value="{{ model.id }}" {% if model.id == config.get('claude_model', 'claude-sonnet-4-20250514') %}selected{% endif %}>
+                        {{ model.name }} &mdash; {{ model.description }}
+                    </option>
+                    {% endfor %}
+                </select>
             </div>
         </div>
+    </div>
 
-        <!-- Filter Configuration -->
-        <div class="card">
-            <div class="card-header">
-                🔍 Filter Configuration
+    <!-- Filter Configuration -->
+    <div class="card">
+        <div class="card-header">
+            &#x1F50D; Filter Configuration
+        </div>
+        <div class="card-body">
+            <div class="config-path">
+                <span class="config-path-icon">&#x1F4C4;</span>
+                {{ config_path }}
             </div>
-            <div class="card-body">
-                <div class="config-path">
-                    <span class="config-path-icon">📄</span>
-                    {{ config_path }}
+
+            <form id="settings-form" action="/settings/save" method="post" style="margin-top: 20px;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Include Organizations</label>
+                        <textarea name="include_orgs" class="form-textarea" placeholder="my-org&#10;another-org">{{ config.get('include_orgs', []) | join('\n') }}</textarea>
+                        <p class="form-hint">One organization per line. Shows PRs from all repos in these orgs.</p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Exclude Organizations</label>
+                        <textarea name="exclude_orgs" class="form-textarea" placeholder="archived-org">{{ config.get('exclude_orgs', []) | join('\n') }}</textarea>
+                        <p class="form-hint">One organization per line. Hide PRs from these orgs.</p>
+                    </div>
                 </div>
 
-                <form action="/settings/save" method="post" style="margin-top: 20px;">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Include Organizations</label>
-                            <textarea name="include_orgs" class="form-textarea" placeholder="my-org&#10;another-org">{{ config.get('include_orgs', []) | join('\n') }}</textarea>
-                            <p class="form-hint">One organization per line. Shows PRs from all repos in these orgs.</p>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Exclude Organizations</label>
-                            <textarea name="exclude_orgs" class="form-textarea" placeholder="archived-org">{{ config.get('exclude_orgs', []) | join('\n') }}</textarea>
-                            <p class="form-hint">One organization per line. Hide PRs from these orgs.</p>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Include Repositories</label>
-                            <textarea name="include_repos" class="form-textarea" placeholder="owner/repo&#10;org/specific-repo">{{ config.get('include_repos', []) | join('\n') }}</textarea>
-                            <p class="form-hint">One repository per line (owner/repo format).</p>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Exclude Repositories</label>
-                            <textarea name="exclude_repos" class="form-textarea" placeholder="owner/archived-repo">{{ config.get('exclude_repos', []) | join('\n') }}</textarea>
-                            <p class="form-hint">One repository per line. Hide PRs from these repos.</p>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Refresh Interval (seconds)</label>
-                            <input type="number" name="refresh_interval" class="form-input" value="{{ config.get('refresh_interval', 60) }}" min="10" max="600">
-                            <p class="form-hint">How often to sync PR data (10-600 seconds).</p>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Max PRs per Repository</label>
-                            <input type="number" name="max_prs_per_repo" class="form-input" value="{{ config.get('max_prs_per_repo', 10) }}" min="1" max="50">
-                            <p class="form-hint">Limit PRs shown per repo (1-50).</p>
-                        </div>
-                    </div>
-
+                <div class="form-row">
                     <div class="form-group">
-                        <label class="form-checkbox">
-                            <input type="checkbox" name="show_drafts" {% if config.get('show_drafts', True) %}checked{% endif %}>
-                            <span>Show draft PRs</span>
-                        </label>
+                        <label class="form-label">Include Repositories</label>
+                        <textarea name="include_repos" class="form-textarea" placeholder="owner/repo&#10;org/specific-repo">{{ config.get('include_repos', []) | join('\n') }}</textarea>
+                        <p class="form-hint">One repository per line (owner/repo format).</p>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Exclude Repositories</label>
+                        <textarea name="exclude_repos" class="form-textarea" placeholder="owner/archived-repo">{{ config.get('exclude_repos', []) | join('\n') }}</textarea>
+                        <p class="form-hint">One repository per line. Hide PRs from these repos.</p>
+                    </div>
+                </div>
 
-                    <div style="display: flex; gap: 12px; margin-top: 24px;">
-                        <button type="submit" class="btn btn-primary">
-                            💾 Save Settings
-                        </button>
-                        <a href="/" class="btn">
-                            ← Back to Dashboard
-                        </a>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Refresh Interval (seconds)</label>
+                        <input type="number" name="refresh_interval" class="form-input" value="{{ config.get('refresh_interval', 60) }}" min="10" max="600">
+                        <p class="form-hint">How often to sync PR data (10-600 seconds).</p>
                     </div>
-                </form>
-            </div>
+                    <div class="form-group">
+                        <label class="form-label">Max PRs per Repository</label>
+                        <input type="number" name="max_prs_per_repo" class="form-input" value="{{ config.get('max_prs_per_repo', 10) }}" min="1" max="50">
+                        <p class="form-hint">Limit PRs shown per repo (1-50).</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-checkbox">
+                        <input type="checkbox" name="show_drafts" {% if config.get('show_drafts', True) %}checked{% endif %}>
+                        <span>Show draft PRs</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary">
+                        &#x1F4BE; Save Settings
+                    </button>
+                    <a href="/" class="btn">
+                        &#x2190; Back to Dashboard
+                    </a>
+                </div>
+            </form>
         </div>
-    </main>
-</body>
-</html>
+    </div>
+{% endblock %}

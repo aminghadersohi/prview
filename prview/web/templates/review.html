@@ -1,0 +1,693 @@
+{% extends "base.html" %}
+
+{% block title %}prview - Review - {{ repo }}#{{ number }}{% endblock %}
+
+{% block nav_dashboard %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .review-layout {
+        display: flex;
+        gap: 20px;
+        max-width: 1400px;
+        min-height: calc(100vh - 80px);
+    }
+
+    /* Left sidebar */
+    .review-sidebar {
+        width: 320px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .pr-info-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    .pr-info-repo {
+        color: var(--accent-cyan);
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .pr-info-title {
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        line-height: 1.4;
+    }
+
+    .pr-info-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .pr-info-meta-row {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .pr-info-author {
+        color: var(--accent-purple);
+    }
+
+    .pr-info-stats {
+        display: flex;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .pr-info-links {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    /* Files list */
+    .files-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        flex: 1;
+    }
+
+    .files-header {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .files-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .file-item {
+        padding: 6px 16px;
+        font-size: 12px;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .file-item:last-child {
+        border-bottom: none;
+    }
+
+    .file-status-add { color: var(--success); }
+    .file-status-mod { color: var(--warning); }
+    .file-status-del { color: var(--error); }
+    .file-status-rename { color: var(--accent-purple); }
+
+    /* Right main area */
+    .review-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    /* Conversation area */
+    .review-conversation {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 16px;
+        max-height: calc(100vh - 320px);
+        padding: 4px;
+    }
+
+    .review-message {
+        padding: 14px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .review-message-ai {
+        align-self: flex-start;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        max-width: 90%;
+    }
+
+    .review-message-ai .message-content {
+        overflow-wrap: break-word;
+    }
+
+    .review-message-user {
+        align-self: flex-end;
+        background: var(--bg-selected);
+        border: 1px solid rgba(86, 156, 214, 0.3);
+        max-width: 80%;
+    }
+
+    .review-message pre {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 8px 0;
+        overflow-x: auto;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
+    }
+
+    .review-message code {
+        background: var(--bg-tertiary);
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 12px;
+    }
+
+    .review-message pre code {
+        background: none;
+        padding: 0;
+    }
+
+    /* Thinking block */
+    .thinking-block {
+        margin: 8px 0;
+    }
+
+    .thinking-block summary {
+        cursor: pointer;
+        color: var(--accent-purple);
+        font-size: 12px;
+        padding: 4px 0;
+        user-select: none;
+    }
+
+    .thinking-block summary:hover {
+        color: #d9a0d9;
+    }
+
+    .thinking-content {
+        background: rgba(197, 134, 192, 0.08);
+        border-left: 3px solid var(--accent-purple);
+        padding: 8px 12px;
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        border-radius: 0 4px 4px 0;
+        white-space: pre-wrap;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    /* Usage info */
+    .usage-info {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+    }
+
+    /* Streaming indicator */
+    .streaming-indicator {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        padding: 4px 0;
+    }
+
+    .streaming-indicator.active {
+        display: flex;
+    }
+
+    .streaming-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--accent-blue);
+        border-radius: 50%;
+        animation: pulse 1s infinite;
+    }
+
+    /* Input area */
+    .review-input {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+    }
+
+    .review-input-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .review-type-select {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .review-type-select:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .model-select {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .model-select:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .review-input-row {
+        display: flex;
+        gap: 10px;
+    }
+
+    .review-textarea {
+        flex: 1;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        resize: none;
+        min-height: 44px;
+        max-height: 200px;
+        line-height: 1.5;
+    }
+
+    .review-textarea:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .review-textarea::placeholder {
+        color: var(--text-muted);
+    }
+
+    .review-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .review-actions .btn {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+
+    .btn-approve {
+        background: var(--accent-green);
+        border-color: var(--accent-green);
+        color: white;
+    }
+
+    .btn-approve:hover {
+        background: #5a8a48;
+    }
+
+    /* Empty review state */
+    .review-empty {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-muted);
+    }
+
+    @media (max-width: 900px) {
+        .review-layout {
+            flex-direction: column;
+        }
+        .review-sidebar {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block main_class %}review-layout{% endblock %}
+
+{% block content %}
+    <!-- Sidebar -->
+    <aside class="review-sidebar">
+        <div class="pr-info-card">
+            <div class="pr-info-repo">{{ repo }}#{{ number }}</div>
+            <div class="pr-info-title" id="pr-title">{{ pr_data.title }}</div>
+            <div class="pr-info-meta">
+                <div class="pr-info-meta-row">
+                    <span>Author</span>
+                    <span class="pr-info-author">{{ pr_data.author }}</span>
+                </div>
+                <div class="pr-info-meta-row">
+                    <span>Files</span>
+                    <span>{{ pr_data.files | length }}</span>
+                </div>
+                <div class="pr-info-stats">
+                    <span class="additions">+{{ pr_data.additions }}</span>
+                    <span class="deletions">-{{ pr_data.deletions }}</span>
+                </div>
+            </div>
+            <div class="pr-info-links">
+                <a href="/" class="btn btn-sm">&#x2190; Dashboard</a>
+                <a href="{{ pr_data.url }}" target="_blank" class="btn btn-sm">View on GitHub</a>
+            </div>
+        </div>
+
+        <div class="files-card">
+            <div class="files-header">Files Changed ({{ pr_data.files | length }})</div>
+            <div class="files-list">
+                {% for file in pr_data.files %}
+                <div class="file-item">
+                    {% if file.status == 'added' %}
+                    <span class="file-status-add">A</span>
+                    {% elif file.status == 'removed' %}
+                    <span class="file-status-del">D</span>
+                    {% elif file.status == 'renamed' %}
+                    <span class="file-status-rename">R</span>
+                    {% else %}
+                    <span class="file-status-mod">M</span>
+                    {% endif %}
+                    <span>{{ file.path }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main review area -->
+    <div class="review-main">
+        <div class="review-conversation" id="review-conversation">
+            <div class="review-empty" id="review-empty">
+                Generating initial review...
+            </div>
+        </div>
+
+        <div class="streaming-indicator" id="streaming-indicator">
+            <span class="streaming-dot"></span>
+            <span>AI is reviewing...</span>
+        </div>
+
+        <div class="review-input">
+            <div class="review-input-controls">
+                <label style="color: var(--text-secondary); font-size: 12px;">Model:</label>
+                <select class="model-select" id="model-select">
+                    {% for model in claude_models %}
+                    <option value="{{ model.id }}" {% if model.id == selected_model %}selected{% endif %}>
+                        {{ model.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <label style="color: var(--text-secondary); font-size: 12px; margin-left: auto;">Review type:</label>
+                <select class="review-type-select" id="review-type-select">
+                    <option value="COMMENT">Comment</option>
+                    <option value="APPROVE">Approve</option>
+                    <option value="REQUEST_CHANGES">Request Changes</option>
+                </select>
+            </div>
+            <div class="review-input-row">
+                <textarea
+                    class="review-textarea"
+                    id="review-input"
+                    placeholder="Reply to guide the review... (e.g. 'focus on security', 'ignore style issues')"
+                    rows="1"
+                ></textarea>
+                <div class="review-actions">
+                    <button class="btn btn-primary" id="generate-btn" onclick="sendMessage()">Generate Review</button>
+                    <button class="btn btn-approve" id="submit-btn" onclick="submitReview()">Submit to GitHub</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const conversationEl = document.getElementById('review-conversation');
+    const reviewEmpty = document.getElementById('review-empty');
+    const reviewInput = document.getElementById('review-input');
+    const modelSelect = document.getElementById('model-select');
+    const reviewTypeSelect = document.getElementById('review-type-select');
+    const generateBtn = document.getElementById('generate-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    const streamingIndicator = document.getElementById('streaming-indicator');
+
+    const repo = {{ repo | tojson }};
+    const number = {{ number | tojson }};
+
+    let conversation = [];
+    let isStreaming = false;
+    let lastAiContent = '';
+
+    // Auto-resize textarea
+    reviewInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+    });
+
+    reviewInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function addAiMessage() {
+        if (reviewEmpty) reviewEmpty.remove();
+        const msg = document.createElement('div');
+        msg.className = 'review-message review-message-ai';
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        msg.appendChild(contentDiv);
+        conversationEl.appendChild(msg);
+        conversationEl.scrollTop = conversationEl.scrollHeight;
+        return msg;
+    }
+
+    function addUserMessage(text) {
+        if (reviewEmpty) reviewEmpty.remove();
+        const msg = document.createElement('div');
+        msg.className = 'review-message review-message-user';
+        msg.textContent = text;
+        conversationEl.appendChild(msg);
+        conversationEl.scrollTop = conversationEl.scrollHeight;
+    }
+
+    async function sendMessage() {
+        if (isStreaming) return;
+
+        const userMessage = reviewInput.value.trim();
+
+        if (userMessage) {
+            conversation.push({ role: 'user', content: userMessage });
+            addUserMessage(userMessage);
+            reviewInput.value = '';
+            reviewInput.style.height = 'auto';
+        }
+
+        isStreaming = true;
+        generateBtn.disabled = true;
+        streamingIndicator.classList.add('active');
+
+        const aiMsg = addAiMessage();
+        const contentDiv = aiMsg.querySelector('.message-content');
+
+        let currentTextSpan = null;
+        let currentThinkingDetails = null;
+        let currentThinkingContent = null;
+        let usageData = null;
+        lastAiContent = '';
+
+        try {
+            const resp = await fetch(`/pr/${repo}/${number}/review/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: userMessage || '',
+                    conversation: conversation,
+                    model: modelSelect.value,
+                }),
+            });
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    let event;
+                    try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+                    if (event.type === 'done') {
+                        break;
+                    }
+
+                    if (event.type === 'text_start') {
+                        currentTextSpan = document.createElement('span');
+                        contentDiv.appendChild(currentTextSpan);
+                    } else if (event.type === 'text') {
+                        if (!currentTextSpan) {
+                            currentTextSpan = document.createElement('span');
+                            contentDiv.appendChild(currentTextSpan);
+                        }
+                        currentTextSpan.textContent += event.content;
+                        lastAiContent += event.content;
+                    } else if (event.type === 'thinking_start') {
+                        currentThinkingDetails = document.createElement('details');
+                        currentThinkingDetails.className = 'thinking-block';
+                        const summary = document.createElement('summary');
+                        summary.textContent = 'Thinking...';
+                        currentThinkingDetails.appendChild(summary);
+                        currentThinkingContent = document.createElement('div');
+                        currentThinkingContent.className = 'thinking-content';
+                        currentThinkingDetails.appendChild(currentThinkingContent);
+                        contentDiv.appendChild(currentThinkingDetails);
+                    } else if (event.type === 'thinking') {
+                        if (currentThinkingContent) {
+                            currentThinkingContent.textContent += event.content;
+                        }
+                    } else if (event.type === 'content_block_stop') {
+                        if (currentThinkingDetails) {
+                            const summary = currentThinkingDetails.querySelector('summary');
+                            if (summary) summary.textContent = 'Show thinking';
+                        }
+                        currentTextSpan = null;
+                        currentThinkingDetails = null;
+                        currentThinkingContent = null;
+                    } else if (event.type === 'usage') {
+                        usageData = event.content;
+                    } else if (event.type === 'error') {
+                        const errDiv = document.createElement('div');
+                        errDiv.style.color = 'var(--error)';
+                        errDiv.textContent = event.content;
+                        contentDiv.appendChild(errDiv);
+                    }
+
+                    conversationEl.scrollTop = conversationEl.scrollHeight;
+                }
+            }
+        } catch (err) {
+            const errDiv = document.createElement('div');
+            errDiv.style.color = 'var(--error)';
+            errDiv.textContent = 'Connection error: ' + err.message;
+            contentDiv.appendChild(errDiv);
+        }
+
+        if (lastAiContent) {
+            conversation.push({ role: 'assistant', content: lastAiContent });
+        }
+
+        // Show usage
+        if (usageData) {
+            const usageDiv = document.createElement('div');
+            usageDiv.className = 'usage-info';
+            const parts = [];
+            if (usageData.input_tokens) parts.push('In: ' + usageData.input_tokens.toLocaleString());
+            if (usageData.output_tokens) parts.push('Out: ' + usageData.output_tokens.toLocaleString());
+            if (usageData.cost_usd != null) parts.push('Cost: $' + usageData.cost_usd.toFixed(4));
+            if (usageData.duration_ms) parts.push('Time: ' + (usageData.duration_ms / 1000).toFixed(1) + 's');
+            usageDiv.textContent = parts.join(' | ');
+            aiMsg.appendChild(usageDiv);
+        }
+
+        if (!contentDiv.textContent.trim()) {
+            contentDiv.textContent = '(No response received)';
+            contentDiv.style.color = 'var(--text-muted)';
+        }
+
+        isStreaming = false;
+        generateBtn.disabled = false;
+        streamingIndicator.classList.remove('active');
+        reviewInput.focus();
+    }
+
+    async function submitReview() {
+        if (!lastAiContent) {
+            alert('Generate a review first before submitting.');
+            return;
+        }
+
+        const event = reviewTypeSelect.value;
+        submitBtn.disabled = true;
+
+        try {
+            const resp = await fetch(`/pr/${repo}/${number}/review/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    body: lastAiContent,
+                    event: event,
+                }),
+            });
+
+            const data = await resp.json();
+            if (data.error) {
+                alert('Failed to submit review: ' + data.error);
+            } else {
+                // Show success
+                const msg = document.createElement('div');
+                msg.className = 'review-message review-message-ai';
+                msg.style.background = 'rgba(137, 209, 133, 0.1)';
+                msg.style.borderColor = 'rgba(137, 209, 133, 0.3)';
+                msg.style.color = 'var(--success)';
+                msg.textContent = `Review submitted as "${event}" successfully!`;
+                conversationEl.appendChild(msg);
+                conversationEl.scrollTop = conversationEl.scrollHeight;
+            }
+        } catch (err) {
+            alert('Failed to submit review: ' + err.message);
+        }
+
+        submitBtn.disabled = false;
+    }
+
+    // Auto-start initial review generation
+    sendMessage();
+</script>
+{% endblock %}

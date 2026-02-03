@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+
+{% block title %}prview - Chat{% endblock %}
+
+{% block body_attrs %}style="display: flex; flex-direction: column;"{% endblock %}
+
+{% block nav_chat %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Chat-specific styles */
+    .chat-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        max-width: 900px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    /* Status card */
+    .status-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+    }
+
+    .status-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .model-label {
+        color: var(--text-secondary);
+    }
+
+    /* Messages area */
+    .messages {
+        flex: 1;
+        overflow-y: auto;
+        margin-bottom: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 200px;
+        max-height: calc(100vh - 300px);
+    }
+
+    .message {
+        padding: 12px 16px;
+        border-radius: 8px;
+        max-width: 85%;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .message-user {
+        align-self: flex-end;
+        background: var(--bg-selected);
+        border: 1px solid rgba(86, 156, 214, 0.3);
+        color: var(--text-primary);
+    }
+
+    .message-assistant {
+        align-self: flex-start;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+    }
+
+    .message-assistant .message-content {
+        overflow-wrap: break-word;
+    }
+
+    .message-error {
+        align-self: flex-start;
+        background: rgba(241, 76, 76, 0.1);
+        border: 1px solid rgba(241, 76, 76, 0.3);
+        color: var(--error);
+    }
+
+    .message-system {
+        align-self: center;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+
+    /* Thinking block */
+    .thinking-block {
+        margin: 8px 0;
+    }
+
+    .thinking-block summary {
+        cursor: pointer;
+        color: var(--accent-purple);
+        font-size: 12px;
+        padding: 4px 0;
+        user-select: none;
+    }
+
+    .thinking-block summary:hover {
+        color: #d9a0d9;
+    }
+
+    .thinking-content {
+        background: rgba(197, 134, 192, 0.08);
+        border-left: 3px solid var(--accent-purple);
+        padding: 8px 12px;
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        border-radius: 0 4px 4px 0;
+        white-space: pre-wrap;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    /* Usage info */
+    .usage-info {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+    }
+
+    /* Input area */
+    .input-area {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+    }
+
+    .input-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .model-select {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .model-select:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .input-row {
+        display: flex;
+        gap: 10px;
+    }
+
+    .chat-input {
+        flex: 1;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        resize: none;
+        min-height: 44px;
+        max-height: 200px;
+        line-height: 1.5;
+    }
+
+    .chat-input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .chat-input::placeholder {
+        color: var(--text-muted);
+    }
+
+    .send-btn {
+        background: var(--accent-blue);
+        border: 1px solid var(--accent-blue);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.15s ease;
+        align-self: flex-end;
+        white-space: nowrap;
+    }
+
+    .send-btn:hover:not(:disabled) {
+        background: #4a8bc9;
+    }
+
+    .send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Streaming indicator */
+    .streaming-indicator {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        padding: 4px 0;
+    }
+
+    .streaming-indicator.active {
+        display: flex;
+    }
+
+    .streaming-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--accent-blue);
+        border-radius: 50%;
+        animation: pulse 1s infinite;
+    }
+
+    /* Code blocks in assistant messages */
+    .message-assistant pre {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 8px 0;
+        overflow-x: auto;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
+    }
+
+    .message-assistant code {
+        background: var(--bg-tertiary);
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 12px;
+    }
+
+    .message-assistant pre code {
+        background: none;
+        padding: 0;
+    }
+</style>
+{% endblock %}
+
+{% block main_class %}chat-main{% endblock %}
+
+{% block content %}
+    <!-- Claude status -->
+    <div class="status-card">
+        <div class="status-info">
+            {% if claude_status.available %}
+            <span class="status-badge success">
+                <span class="status-dot"></span>
+                Claude CLI Connected
+            </span>
+            <span class="model-label">v{{ claude_status.version or 'unknown' }}</span>
+            {% else %}
+            <span class="status-badge error">
+                <span class="status-dot"></span>
+                Claude CLI Not Available
+            </span>
+            {% endif %}
+        </div>
+        <span class="model-label" id="current-model-label"></span>
+    </div>
+
+    {% if not claude_status.available %}
+    <div class="alert error">
+        {{ claude_status.error or 'Claude CLI is not available.' }}
+        <br>Install with: <code>npm install -g @anthropic-ai/claude-code</code>
+    </div>
+    {% endif %}
+
+    <!-- Messages -->
+    <div class="messages" id="messages">
+        <div class="empty-state" id="empty-state" style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; background: none; border: none;">
+            <div>
+                <div class="empty-icon">&#x1F4AC;</div>
+                <div>Ask Claude anything about your PRs or get coding help.</div>
+                <div style="color: var(--text-muted); margin-top: 4px; font-size: 12px;">
+                    Claude has context about your open pull requests.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="streaming-indicator" id="streaming-indicator">
+        <span class="streaming-dot"></span>
+        <span>Claude is responding...</span>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+        <div class="input-controls">
+            <label style="color: var(--text-secondary); font-size: 12px;">Model:</label>
+            <select class="model-select" id="model-select" {% if not claude_status.available %}disabled{% endif %}>
+                {% for model in claude_models %}
+                <option value="{{ model.id }}" {% if model.id == selected_model %}selected{% endif %}>
+                    {{ model.name }} &mdash; {{ model.description }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="input-row">
+            <textarea
+                class="chat-input"
+                id="chat-input"
+                placeholder="Ask Claude about your PRs..."
+                rows="1"
+                {% if not claude_status.available %}disabled{% endif %}
+            ></textarea>
+            <button
+                class="send-btn"
+                id="send-btn"
+                {% if not claude_status.available %}disabled{% endif %}
+            >Send</button>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const messagesEl = document.getElementById('messages');
+    const emptyState = document.getElementById('empty-state');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    const modelSelect = document.getElementById('model-select');
+    const streamingIndicator = document.getElementById('streaming-indicator');
+    const currentModelLabel = document.getElementById('current-model-label');
+
+    let isStreaming = false;
+
+    // Update model label
+    function updateModelLabel() {
+        const opt = modelSelect.options[modelSelect.selectedIndex];
+        if (opt) {
+            currentModelLabel.textContent = opt.text.split(' \u2014 ')[0];
+        }
+    }
+    updateModelLabel();
+    modelSelect.addEventListener('change', updateModelLabel);
+
+    // Auto-resize textarea
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+    });
+
+    // Send on Enter (Shift+Enter for newline)
+    chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function addMessage(role, content) {
+        if (emptyState) {
+            emptyState.remove();
+        }
+        const msg = document.createElement('div');
+        msg.className = 'message message-' + role;
+        if (role === 'user') {
+            msg.textContent = content;
+        } else {
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            msg.appendChild(contentDiv);
+        }
+        messagesEl.appendChild(msg);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return msg;
+    }
+
+    async function sendMessage() {
+        const message = chatInput.value.trim();
+        if (!message || isStreaming) return;
+
+        isStreaming = true;
+        sendBtn.disabled = true;
+        chatInput.disabled = true;
+        streamingIndicator.classList.add('active');
+
+        // Add user message
+        addMessage('user', message);
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+
+        // Create assistant message placeholder
+        const assistantMsg = addMessage('assistant', '');
+        const contentDiv = assistantMsg.querySelector('.message-content');
+
+        let currentTextSpan = null;
+        let currentThinkingDetails = null;
+        let currentThinkingContent = null;
+        let usageData = null;
+
+        try {
+            const formData = new FormData();
+            formData.append('message', message);
+            formData.append('model', modelSelect.value);
+
+            const response = await fetch('/chat/send', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Process complete SSE lines
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const jsonStr = line.slice(6);
+
+                    let event;
+                    try {
+                        event = JSON.parse(jsonStr);
+                    } catch {
+                        continue;
+                    }
+
+                    if (event.type === 'done') {
+                        break;
+                    }
+
+                    if (event.type === 'text_start') {
+                        currentTextSpan = document.createElement('span');
+                        contentDiv.appendChild(currentTextSpan);
+                    } else if (event.type === 'text') {
+                        if (!currentTextSpan) {
+                            currentTextSpan = document.createElement('span');
+                            contentDiv.appendChild(currentTextSpan);
+                        }
+                        currentTextSpan.textContent += event.content;
+                    } else if (event.type === 'thinking_start') {
+                        currentThinkingDetails = document.createElement('details');
+                        currentThinkingDetails.className = 'thinking-block';
+                        const summary = document.createElement('summary');
+                        summary.textContent = 'Thinking...';
+                        currentThinkingDetails.appendChild(summary);
+                        currentThinkingContent = document.createElement('div');
+                        currentThinkingContent.className = 'thinking-content';
+                        currentThinkingDetails.appendChild(currentThinkingContent);
+                        contentDiv.appendChild(currentThinkingDetails);
+                    } else if (event.type === 'thinking') {
+                        if (currentThinkingContent) {
+                            currentThinkingContent.textContent += event.content;
+                        }
+                    } else if (event.type === 'content_block_stop') {
+                        if (currentThinkingDetails) {
+                            const summary = currentThinkingDetails.querySelector('summary');
+                            if (summary) summary.textContent = 'Show thinking';
+                        }
+                        currentTextSpan = null;
+                        currentThinkingDetails = null;
+                        currentThinkingContent = null;
+                    } else if (event.type === 'usage') {
+                        usageData = event.content;
+                    } else if (event.type === 'error') {
+                        const errDiv = document.createElement('div');
+                        errDiv.style.color = 'var(--error)';
+                        errDiv.textContent = event.content;
+                        contentDiv.appendChild(errDiv);
+                    } else if (event.type === 'system') {
+                        // System messages - usually init info, skip silently
+                    }
+
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                }
+            }
+        } catch (err) {
+            const errDiv = document.createElement('div');
+            errDiv.style.color = 'var(--error)';
+            errDiv.textContent = 'Connection error: ' + err.message;
+            contentDiv.appendChild(errDiv);
+        }
+
+        // Show usage if available
+        if (usageData) {
+            const usageDiv = document.createElement('div');
+            usageDiv.className = 'usage-info';
+            const parts = [];
+            if (usageData.input_tokens) parts.push('In: ' + usageData.input_tokens.toLocaleString());
+            if (usageData.output_tokens) parts.push('Out: ' + usageData.output_tokens.toLocaleString());
+            if (usageData.cost_usd != null) parts.push('Cost: $' + usageData.cost_usd.toFixed(4));
+            if (usageData.duration_ms) parts.push('Time: ' + (usageData.duration_ms / 1000).toFixed(1) + 's');
+            usageDiv.textContent = parts.join(' | ');
+            assistantMsg.appendChild(usageDiv);
+        }
+
+        // If contentDiv is empty, show a fallback
+        if (!contentDiv.textContent.trim()) {
+            contentDiv.textContent = '(No response received)';
+            contentDiv.style.color = 'var(--text-muted)';
+        }
+
+        isStreaming = false;
+        sendBtn.disabled = false;
+        chatInput.disabled = false;
+        streamingIndicator.classList.remove('active');
+        chatInput.focus();
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+</script>
+{% endblock %}
