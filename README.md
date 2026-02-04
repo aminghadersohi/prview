@@ -5,6 +5,9 @@ A beautiful TUI and web dashboard for GitHub PRs and CI status.
 ![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
+<img width="1737" height="894" alt="Screenshot 2026-02-04 at 4 20 15 AM" src="https://github.com/user-attachments/assets/67776c53-12c2-4b60-b6bf-e44240fb1aec" />
+
+
 ## Features
 
 - **Your Open PRs** - View all your open PRs across multiple repos/orgs
