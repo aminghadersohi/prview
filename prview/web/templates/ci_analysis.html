@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+
+{% block title %}prview - CI Analysis - {{ repo }}#{{ number }}{% endblock %}
+
+{% block nav_dashboard %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .ci-layout {
+        max-width: 1000px;
+        padding: 20px;
+        margin: 0 auto;
+    }
+
+    .ci-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        gap: 12px;
+    }
+
+    .ci-header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .ci-mode-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .ci-mode-badge.explain {
+        background: rgba(55, 148, 255, 0.2);
+        color: var(--info);
+    }
+
+    .ci-mode-badge.fix {
+        background: rgba(204, 167, 0, 0.2);
+        color: var(--warning);
+    }
+
+    /* Build info card */
+    .build-info-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+
+    .build-info-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .build-info-body {
+        padding: 12px 16px;
+    }
+
+    .build-meta {
+        display: flex;
+        gap: 20px;
+        font-size: 12px;
+        margin-bottom: 12px;
+    }
+
+    .build-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .build-meta-label {
+        color: var(--text-secondary);
+    }
+
+    .build-meta-value {
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    }
+
+    .build-meta-value.failure {
+        color: var(--error);
+    }
+
+    .build-meta-value.success {
+        color: var(--success);
+    }
+
+    /* Stages */
+    .stages-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .stage-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        font-size: 12px;
+    }
+
+    .stage-icon {
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-size: 10px;
+        flex-shrink: 0;
+    }
+
+    .stage-icon.success {
+        background: rgba(137, 209, 133, 0.2);
+        color: var(--success);
+    }
+
+    .stage-icon.failed {
+        background: rgba(241, 76, 76, 0.2);
+        color: var(--error);
+    }
+
+    .stage-icon.other {
+        background: var(--bg-tertiary);
+        color: var(--text-muted);
+    }
+
+    .stage-name {
+        flex: 1;
+    }
+
+    .stage-name.failed {
+        color: var(--error);
+        font-weight: 500;
+    }
+
+    .stage-duration {
+        color: var(--text-muted);
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    }
+
+    /* Analysis area */
+    .analysis-area {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px 20px;
+        min-height: 200px;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .analysis-area pre {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 8px 0;
+        overflow-x: auto;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
+    }
+
+    .analysis-area code {
+        background: var(--bg-tertiary);
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 12px;
+    }
+
+    .analysis-area pre code {
+        background: none;
+        padding: 0;
+    }
+
+    .streaming-indicator {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        padding: 8px 0;
+    }
+
+    .streaming-indicator.active {
+        display: flex;
+    }
+
+    .streaming-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--accent-blue);
+        border-radius: 50%;
+        animation: pulse 1s infinite;
+    }
+
+    .analysis-empty {
+        color: var(--text-muted);
+        text-align: center;
+        padding: 40px 20px;
+    }
+
+    .thinking-block {
+        margin: 8px 0;
+    }
+
+    .thinking-block summary {
+        cursor: pointer;
+        color: var(--accent-purple);
+        font-size: 12px;
+        padding: 4px 0;
+        user-select: none;
+    }
+
+    .thinking-content {
+        background: rgba(197, 134, 192, 0.08);
+        border-left: 3px solid var(--accent-purple);
+        padding: 8px 12px;
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        border-radius: 0 4px 4px 0;
+        white-space: pre-wrap;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .usage-info {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+    }
+</style>
+{% endblock %}
+
+{% block main_class %}ci-layout{% endblock %}
+
+{% block content %}
+    <div class="ci-header">
+        <div class="ci-header-left">
+            <a href="/" class="btn btn-sm">&#x2190; Dashboard</a>
+            <span style="color: var(--accent-cyan); font-size: 12px;">{{ repo }}#{{ number }}</span>
+            <span style="font-weight: 600;">{{ pr_title }}</span>
+            <span class="ci-mode-badge {{ mode }}">
+                {% if mode == 'fix' %}Suggest Fix{% else %}Explain Failure{% endif %}
+            </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="color: var(--text-secondary); font-size: 12px;">Model:</label>
+            <select class="form-input" id="model-select" style="width: auto; padding: 4px 8px; font-size: 12px;">
+                {% for model in claude_models %}
+                <option value="{{ model.id }}" {% if model.id == selected_model %}selected{% endif %}>
+                    {{ model.name }}
+                </option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-primary" id="analyze-btn" onclick="startAnalysis()">
+                {% if mode == 'fix' %}Analyze &amp; Suggest Fix{% else %}Analyze Failure{% endif %}
+            </button>
+        </div>
+    </div>
+
+    <!-- Build info (populated by JS) -->
+    <div class="build-info-card" id="build-info-card" style="display: none;">
+        <div class="build-info-header">
+            &#x1F3D7; Build Info
+        </div>
+        <div class="build-info-body">
+            <div class="build-meta" id="build-meta"></div>
+            <div class="stages-list" id="stages-list"></div>
+        </div>
+    </div>
+
+    <!-- Analysis output -->
+    <div class="streaming-indicator" id="streaming-indicator">
+        <span class="streaming-dot"></span>
+        <span id="streaming-text">Fetching build information...</span>
+    </div>
+
+    <div class="analysis-area" id="analysis-area">
+        <div class="analysis-empty" id="analysis-empty">
+            Click "{% if mode == 'fix' %}Analyze &amp; Suggest Fix{% else %}Analyze Failure{% endif %}" to start CI analysis.
+            <br><br>
+            This will fetch Jenkins build logs, identify the failure, and use AI to
+            {% if mode == 'fix' %}suggest a fix{% else %}explain what went wrong{% endif %}.
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const repo = {{ repo | tojson }};
+    const number = {{ number | tojson }};
+    const mode = {{ mode | tojson }};
+    const modelSelect = document.getElementById('model-select');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const analysisArea = document.getElementById('analysis-area');
+    const analysisEmpty = document.getElementById('analysis-empty');
+    const buildInfoCard = document.getElementById('build-info-card');
+    const buildMeta = document.getElementById('build-meta');
+    const stagesList = document.getElementById('stages-list');
+    const streamingIndicator = document.getElementById('streaming-indicator');
+    const streamingText = document.getElementById('streaming-text');
+
+    let isStreaming = false;
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function renderBuildInfo(buildInfo, stages) {
+        buildInfoCard.style.display = 'block';
+
+        // Build meta
+        var resultClass = buildInfo.result === 'FAILURE' ? 'failure' : buildInfo.result === 'SUCCESS' ? 'success' : '';
+        buildMeta.innerHTML =
+            '<div class="build-meta-item"><span class="build-meta-label">Build</span><span class="build-meta-value">#' + buildInfo.build_number + '</span></div>' +
+            '<div class="build-meta-item"><span class="build-meta-label">Result</span><span class="build-meta-value ' + resultClass + '">' + (buildInfo.result || 'UNKNOWN') + '</span></div>' +
+            (buildInfo.duration_min ? '<div class="build-meta-item"><span class="build-meta-label">Duration</span><span class="build-meta-value">' + buildInfo.duration_min + ' min</span></div>' : '') +
+            (buildInfo.url ? '<div class="build-meta-item"><a href="' + escapeHtml(buildInfo.url) + '" target="_blank" style="color: var(--accent-cyan); font-size: 12px;">View in Jenkins</a></div>' : '');
+
+        // Stages
+        if (stages && stages.length > 0) {
+            stagesList.innerHTML = '';
+            stages.forEach(function(stage) {
+                var iconClass = stage.status === 'FAILED' ? 'failed' : stage.status === 'SUCCESS' ? 'success' : 'other';
+                var icon = stage.status === 'FAILED' ? '&#x2717;' : stage.status === 'SUCCESS' ? '&#x2713;' : '&#x25CB;';
+                var nameClass = stage.status === 'FAILED' ? 'failed' : '';
+                stagesList.innerHTML +=
+                    '<div class="stage-item">' +
+                    '<span class="stage-icon ' + iconClass + '">' + icon + '</span>' +
+                    '<span class="stage-name ' + nameClass + '">' + escapeHtml(stage.name) + '</span>' +
+                    '<span class="stage-duration">' + stage.duration_min + ' min</span>' +
+                    '</div>';
+            });
+        }
+    }
+
+    async function startAnalysis() {
+        if (isStreaming) return;
+
+        isStreaming = true;
+        analyzeBtn.disabled = true;
+        streamingIndicator.classList.add('active');
+        streamingText.textContent = 'Fetching build information...';
+
+        // Clear previous content
+        analysisArea.innerHTML = '';
+        buildInfoCard.style.display = 'none';
+
+        var currentTextSpan = null;
+        var currentThinkingDetails = null;
+        var currentThinkingContent = null;
+        var usageData = null;
+
+        try {
+            var resp = await fetch('/pr/' + repo + '/' + number + '/ci-analysis/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: mode,
+                    model: modelSelect.value
+                })
+            });
+
+            var reader = resp.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            while (true) {
+                var result = await reader.read();
+                if (result.done) break;
+
+                buffer += decoder.decode(result.value, { stream: true });
+                var lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i];
+                    if (!line.startsWith('data: ')) continue;
+                    var event;
+                    try { event = JSON.parse(line.slice(6)); } catch(e) { continue; }
+
+                    if (event.type === 'build_info') {
+                        renderBuildInfo(event.build_info, event.stages);
+                        streamingText.textContent = 'AI is analyzing the failure...';
+                    } else if (event.type === 'text_start') {
+                        currentTextSpan = document.createElement('span');
+                        analysisArea.appendChild(currentTextSpan);
+                    } else if (event.type === 'text') {
+                        if (!currentTextSpan) {
+                            currentTextSpan = document.createElement('span');
+                            analysisArea.appendChild(currentTextSpan);
+                        }
+                        currentTextSpan.textContent += event.content;
+                    } else if (event.type === 'thinking_start') {
+                        currentThinkingDetails = document.createElement('details');
+                        currentThinkingDetails.className = 'thinking-block';
+                        var summary = document.createElement('summary');
+                        summary.textContent = 'Thinking...';
+                        currentThinkingDetails.appendChild(summary);
+                        currentThinkingContent = document.createElement('div');
+                        currentThinkingContent.className = 'thinking-content';
+                        currentThinkingDetails.appendChild(currentThinkingContent);
+                        analysisArea.appendChild(currentThinkingDetails);
+                    } else if (event.type === 'thinking') {
+                        if (currentThinkingContent) {
+                            currentThinkingContent.textContent += event.content;
+                        }
+                    } else if (event.type === 'content_block_stop') {
+                        if (currentThinkingDetails) {
+                            var s = currentThinkingDetails.querySelector('summary');
+                            if (s) s.textContent = 'Show thinking';
+                        }
+                        currentTextSpan = null;
+                        currentThinkingDetails = null;
+                        currentThinkingContent = null;
+                    } else if (event.type === 'usage') {
+                        usageData = event.content;
+                    } else if (event.type === 'error') {
+                        var errDiv = document.createElement('div');
+                        errDiv.style.color = 'var(--error)';
+                        errDiv.textContent = event.content;
+                        analysisArea.appendChild(errDiv);
+                    } else if (event.type === 'done') {
+                        break;
+                    }
+
+                    analysisArea.scrollTop = analysisArea.scrollHeight;
+                }
+            }
+        } catch (err) {
+            var errDiv = document.createElement('div');
+            errDiv.style.color = 'var(--error)';
+            errDiv.textContent = 'Connection error: ' + err.message;
+            analysisArea.appendChild(errDiv);
+        }
+
+        // Show usage
+        if (usageData) {
+            var usageDiv = document.createElement('div');
+            usageDiv.className = 'usage-info';
+            var parts = [];
+            if (usageData.input_tokens) parts.push('In: ' + usageData.input_tokens.toLocaleString());
+            if (usageData.output_tokens) parts.push('Out: ' + usageData.output_tokens.toLocaleString());
+            if (usageData.cost_usd != null) parts.push('Cost: $' + usageData.cost_usd.toFixed(4));
+            if (usageData.duration_ms) parts.push('Time: ' + (usageData.duration_ms / 1000).toFixed(1) + 's');
+            usageDiv.textContent = parts.join(' | ');
+            analysisArea.appendChild(usageDiv);
+        }
+
+        if (!analysisArea.textContent.trim()) {
+            analysisArea.innerHTML = '<div class="analysis-empty">No analysis results. Check that Jenkins is configured in Settings.</div>';
+        }
+
+        isStreaming = false;
+        analyzeBtn.disabled = false;
+        streamingIndicator.classList.remove('active');
+    }
+</script>
+{% endblock %}

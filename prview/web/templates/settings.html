@@ -155,6 +155,261 @@
         </div>
     </div>
 
+    <!-- Task Management Integration -->
+    <div class="card">
+        <div class="card-header">
+            &#x1F4CB; Task Management
+        </div>
+        <div class="card-body">
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">
+                Connect a task management provider to see linked stories/tasks on your PRs.
+            </p>
+
+            <div class="form-group">
+                <label class="form-label">Provider</label>
+                <select name="task_provider" id="task-provider-select" class="form-input" form="settings-form">
+                    <option value="">None (disabled)</option>
+                    {% for tp in task_providers %}
+                    <option value="{{ tp.id }}" {% if tp.id == task_provider_id %}selected{% endif %}>
+                        {{ tp.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="form-hint">Select a task management provider to link stories to PRs.</p>
+            </div>
+
+            <div id="task-provider-config" {% if not task_provider_id %}style="display: none;"{% endif %}>
+                <div class="form-group">
+                    <label class="form-label">API Token</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" name="task_api_token" id="task-api-token" class="form-input"
+                               form="settings-form"
+                               value="{{ task_provider_config.get('api_token', '') }}"
+                               placeholder="Enter your API token">
+                        <button type="button" class="btn btn-sm" onclick="toggleTokenVisibility()" id="toggle-token-btn"
+                                style="white-space: nowrap; align-self: center;">
+                            Show
+                        </button>
+                    </div>
+                    <p class="form-hint">Your Shortcut API token. Find it at Settings &rarr; API Tokens in Shortcut.</p>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <button type="button" class="btn" onclick="testTaskConnection()" id="test-task-btn">
+                        Test Connection
+                    </button>
+                    <span id="task-connection-status"></span>
+                </div>
+            </div>
+
+            <script>
+                document.getElementById('task-provider-select').addEventListener('change', function() {
+                    var configDiv = document.getElementById('task-provider-config');
+                    configDiv.style.display = this.value ? 'block' : 'none';
+                });
+
+                function toggleTokenVisibility() {
+                    var input = document.getElementById('task-api-token');
+                    var btn = document.getElementById('toggle-token-btn');
+                    if (input.type === 'password') {
+                        input.type = 'text';
+                        btn.textContent = 'Hide';
+                    } else {
+                        input.type = 'password';
+                        btn.textContent = 'Show';
+                    }
+                }
+
+                function testTaskConnection() {
+                    var btn = document.getElementById('test-task-btn');
+                    var status = document.getElementById('task-connection-status');
+                    var providerId = document.getElementById('task-provider-select').value;
+                    var apiToken = document.getElementById('task-api-token').value;
+
+                    if (!providerId) {
+                        status.innerHTML = '<span class="status-badge warning"><span class="status-dot"></span>Select a provider first</span>';
+                        return;
+                    }
+                    if (!apiToken) {
+                        status.innerHTML = '<span class="status-badge warning"><span class="status-dot"></span>Enter an API token first</span>';
+                        return;
+                    }
+
+                    btn.disabled = true;
+                    btn.textContent = 'Testing...';
+                    status.innerHTML = '';
+
+                    fetch('/api/task-provider/validate', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            provider_id: providerId,
+                            config: {api_token: apiToken}
+                        })
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.valid) {
+                            var memberInfo = data.member ? ' (' + data.member + ')' : '';
+                            status.innerHTML = '<span class="status-badge success"><span class="status-dot"></span>Connected' + memberInfo + '</span>';
+                        } else {
+                            status.innerHTML = '<span class="status-badge error"><span class="status-dot"></span>' + (data.error || 'Connection failed') + '</span>';
+                        }
+                    })
+                    .catch(function(err) {
+                        status.innerHTML = '<span class="status-badge error"><span class="status-dot"></span>Request failed</span>';
+                    })
+                    .finally(function() {
+                        btn.disabled = false;
+                        btn.textContent = 'Test Connection';
+                    });
+                }
+            </script>
+        </div>
+    </div>
+
+    <!-- Jenkins CI Configuration -->
+    <div class="card">
+        <div class="card-header">
+            &#x1F3D7; Jenkins CI
+        </div>
+        <div class="card-body">
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">
+                Connect Jenkins to enable CI failure analysis on your PRs.
+                The job path is derived automatically from the GitHub repo name.
+            </p>
+
+            <div class="form-group">
+                <label class="form-label">Jenkins URL</label>
+                <input type="text" name="jenkins_url" class="form-input" form="settings-form"
+                       value="{{ ci_config.jenkins_url }}"
+                       placeholder="https://jenkins.devops.preset.zone">
+                <p class="form-hint">Base URL of your Jenkins server.</p>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="jenkins_user" id="jenkins-user" class="form-input" form="settings-form"
+                           value="{{ ci_config.jenkins_user }}"
+                           placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">API Token</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" name="jenkins_token" id="jenkins-token" class="form-input" form="settings-form"
+                               value="{{ ci_config.jenkins_token }}"
+                               placeholder="API token">
+                        <button type="button" class="btn btn-sm" style="white-space: nowrap; align-self: center;"
+                                onclick="var i=document.getElementById('jenkins-token'); i.type=i.type==='password'?'text':'password'; this.textContent=i.type==='password'?'Show':'Hide';">
+                            Show
+                        </button>
+                    </div>
+                    <p class="form-hint">Jenkins API token from your user profile.</p>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button type="button" class="btn" onclick="testCiConnection('jenkins')">
+                    Test Connection
+                </button>
+                <span id="jenkins-connection-status"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Datadog Logs Configuration -->
+    <div class="card">
+        <div class="card-header">
+            &#x1F4CA; Datadog Logs
+        </div>
+        <div class="card-body">
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">
+                Connect Datadog to search runtime logs when CI failures involve deployments.
+                Used automatically when a deployment slug is detected in Jenkins build logs.
+            </p>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">API Key</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" name="datadog_api_key" id="dd-api-key" class="form-input" form="settings-form"
+                               value="{{ ci_config.datadog_api_key }}"
+                               placeholder="Datadog API key">
+                        <button type="button" class="btn btn-sm" style="white-space: nowrap; align-self: center;"
+                                onclick="var i=document.getElementById('dd-api-key'); i.type=i.type==='password'?'text':'password'; this.textContent=i.type==='password'?'Show':'Hide';">
+                            Show
+                        </button>
+                    </div>
+                    <p class="form-hint">From Datadog Organization Settings &rarr; API Keys.</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Application Key</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" name="datadog_app_key" id="dd-app-key" class="form-input" form="settings-form"
+                               value="{{ ci_config.datadog_app_key }}"
+                               placeholder="Datadog app key">
+                        <button type="button" class="btn btn-sm" style="white-space: nowrap; align-self: center;"
+                                onclick="var i=document.getElementById('dd-app-key'); i.type=i.type==='password'?'text':'password'; this.textContent=i.type==='password'?'Show':'Hide';">
+                            Show
+                        </button>
+                    </div>
+                    <p class="form-hint">From Datadog Organization Settings &rarr; Application Keys.</p>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button type="button" class="btn" onclick="testCiConnection('datadog')">
+                    Test Connection
+                </button>
+                <span id="datadog-connection-status"></span>
+            </div>
+
+            <script>
+                function testCiConnection(service) {
+                    var statusEl = document.getElementById(service === 'jenkins' ? 'jenkins-connection-status' : 'datadog-connection-status');
+                    var config = {};
+
+                    if (service === 'jenkins') {
+                        config.jenkins_url = document.querySelector('input[name="jenkins_url"]').value;
+                        config.jenkins_user = document.getElementById('jenkins-user').value;
+                        config.jenkins_token = document.getElementById('jenkins-token').value;
+                        if (!config.jenkins_user || !config.jenkins_token) {
+                            statusEl.innerHTML = '<span class="status-badge warning"><span class="status-dot"></span>Enter credentials first</span>';
+                            return;
+                        }
+                    } else {
+                        config.datadog_api_key = document.getElementById('dd-api-key').value;
+                        config.datadog_app_key = document.getElementById('dd-app-key').value;
+                        if (!config.datadog_api_key || !config.datadog_app_key) {
+                            statusEl.innerHTML = '<span class="status-badge warning"><span class="status-dot"></span>Enter API keys first</span>';
+                            return;
+                        }
+                    }
+
+                    statusEl.innerHTML = '<span style="color: var(--text-secondary);">Testing...</span>';
+
+                    fetch('/api/ci-config/validate', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({service: service, config: config})
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.valid) {
+                            statusEl.innerHTML = '<span class="status-badge success"><span class="status-dot"></span>Connected</span>';
+                        } else {
+                            statusEl.innerHTML = '<span class="status-badge error"><span class="status-dot"></span>' + (data.error || 'Failed') + '</span>';
+                        }
+                    })
+                    .catch(function() {
+                        statusEl.innerHTML = '<span class="status-badge error"><span class="status-dot"></span>Request failed</span>';
+                    });
+                }
+            </script>
+        </div>
+    </div>
+
     <!-- Filter Configuration -->
     <div class="card">
         <div class="card-header">

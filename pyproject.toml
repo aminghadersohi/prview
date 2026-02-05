@@ -39,6 +39,7 @@ web = [
     "uvicorn>=0.23.0",
     "jinja2>=3.0.0",
     "python-multipart>=0.0.6",
+    "httpx>=0.24.0",
 ]
 all = [
     "pynput>=1.7.0",
@@ -46,6 +47,7 @@ all = [
     "uvicorn>=0.23.0",
     "jinja2>=3.0.0",
     "python-multipart>=0.0.6",
+    "httpx>=0.24.0",
 ]
 
 [project.scripts]

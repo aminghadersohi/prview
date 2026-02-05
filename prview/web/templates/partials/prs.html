@@ -15,12 +15,21 @@
             </div>
             <div class="pr-list">
                 {% for pr in prs %}
-                <div class="pr-item" style="grid-template-columns: 70px 1fr 100px 50px 50px 90px 80px auto;">
+                <div class="pr-item" style="grid-template-columns: 70px 1fr 100px 50px 50px 90px 80px 210px;">
                     <a href="{{ pr.url }}" target="_blank" class="pr-number" style="text-decoration: none;">#{{ pr.number }}</a>
-                    <a href="{{ pr.url }}" target="_blank" class="pr-title {% if pr.draft %}draft{% endif %}" style="text-decoration: none; color: inherit;">
-                        {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
-                        {{ pr.title }}
-                    </a>
+                    <div class="pr-title-cell">
+                        <a href="{{ pr.url }}" target="_blank" class="pr-title {% if pr.draft %}draft{% endif %}" style="text-decoration: none; color: inherit;">
+                            {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
+                            {{ pr.title }}
+                        </a>
+                        {% if pr.linked_stories %}
+                        <span class="story-badges">
+                            {% for story in pr.linked_stories %}
+                            <a href="{{ story.url }}" target="_blank" class="story-badge" title="{{ story.name }}">SC-{{ story.id }} {{ story.state }}</a>
+                            {% endfor %}
+                        </span>
+                        {% endif %}
+                    </div>
                     <span class="pr-author">{{ pr.author }}</span>
                     <span class="pr-ci">
                         {% if pr.ci_status == 'success' %}
@@ -51,7 +60,12 @@
                     </span>
                     <span class="pr-updated">{{ pr.updated_at }}</span>
                     <span class="pr-actions">
+                        {% if pr.ci_status == 'failure' %}
+                        <a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=explain" class="pr-action-btn ci-action-btn" title="Explain CI failure">Explain CI</a>
+                        <a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=fix" class="pr-action-btn ci-fix-btn" title="Suggest CI fix">Fix CI</a>
+                        {% endif %}
                         <a href="/pr/{{ pr.repo }}/{{ pr.number }}/comments" class="pr-action-btn" title="Address reviewer comments">Comments</a>
+                        <a href="/pr/{{ pr.repo }}/{{ pr.number }}/chat" class="pr-action-btn agent-btn" title="PR agent chat">Agent</a>
                     </span>
                 </div>
                 {% endfor %}
@@ -78,13 +92,22 @@
     <div class="repo-group">
         <div class="pr-list" style="border-radius: 6px; border-top: 1px solid var(--border);">
             {% for pr in review_requests %}
-            <div class="pr-item" style="grid-template-columns: 70px 150px 1fr 100px 50px 50px 90px 80px auto;">
+            <div class="pr-item" style="grid-template-columns: 70px 150px 1fr 100px 50px 50px 90px 80px 210px;">
                 <a href="{{ pr.url }}" target="_blank" class="pr-number" style="text-decoration: none;">#{{ pr.number }}</a>
                 <span class="pr-repo">{{ pr.repo.split('/')[-1] }}</span>
-                <a href="{{ pr.url }}" target="_blank" class="pr-title {% if pr.draft %}draft{% endif %}" style="text-decoration: none; color: inherit;">
-                    {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
-                    {{ pr.title }}
-                </a>
+                <div class="pr-title-cell">
+                    <a href="{{ pr.url }}" target="_blank" class="pr-title {% if pr.draft %}draft{% endif %}" style="text-decoration: none; color: inherit;">
+                        {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
+                        {{ pr.title }}
+                    </a>
+                    {% if pr.linked_stories %}
+                    <span class="story-badges">
+                        {% for story in pr.linked_stories %}
+                        <a href="{{ story.url }}" target="_blank" class="story-badge" title="{{ story.name }}">SC-{{ story.id }} {{ story.state }}</a>
+                        {% endfor %}
+                    </span>
+                    {% endif %}
+                </div>
                 <span class="pr-author">{{ pr.author }}</span>
                 <span class="pr-ci">
                     {% if pr.ci_status == 'success' %}
@@ -115,7 +138,12 @@
                 </span>
                 <span class="pr-updated">{{ pr.updated_at }}</span>
                 <span class="pr-actions">
+                    {% if pr.ci_status == 'failure' %}
+                    <a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=explain" class="pr-action-btn ci-action-btn" title="Explain CI failure">Explain CI</a>
+                    <a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=fix" class="pr-action-btn ci-fix-btn" title="Suggest CI fix">Fix CI</a>
+                    {% endif %}
                     <a href="/pr/{{ pr.repo }}/{{ pr.number }}/review" class="pr-action-btn" title="AI-assisted review">Review</a>
+                    <a href="/pr/{{ pr.repo }}/{{ pr.number }}/chat" class="pr-action-btn agent-btn" title="PR agent chat">Agent</a>
                 </span>
             </div>
             {% endfor %}

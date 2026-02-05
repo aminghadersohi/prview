@@ -99,17 +99,32 @@ async def stream_claude_response(
     prompt: str,
     model: str = DEFAULT_MODEL,
     system_prompt: Optional[str] = None,
+    session_id: Optional[str] = None,
+    resume_session: bool = False,
+    cwd: Optional[str] = None,
+    timeout_seconds: int = 120,
 ) -> AsyncGenerator[dict, None]:
     """Stream a response from the Claude CLI.
 
-    Yields structured dicts:
-        {"type": "text"|"thinking"|"tool_call"|"tool_result"|"usage"|"system"|"error", "content": ...}
+    Args:
+        prompt: The user message to send.
+        model: Claude model ID.
+        system_prompt: Optional system prompt (only sent on first message, not resume).
+        session_id: Session ID for persistence. Used with --session-id on first msg.
+        resume_session: If True, use --resume with session_id instead of --session-id.
+        cwd: Working directory for the Claude CLI process.
+        timeout_seconds: Timeout in seconds for the CLI process.
+
+    Yields structured dicts with type and content keys.
+    Types: text, thinking, tool_call, tool_result, usage, system, error.
     """
     cli_path = find_claude_cli()
     if not cli_path:
         yield {
             "type": "error",
-            "content": "Claude CLI not found. Install with: npm install -g @anthropic-ai/claude-code",
+            "content": (
+                "Claude CLI not found. Install with: npm install -g @anthropic-ai/claude-code"
+            ),
         }
         return
 
@@ -122,14 +137,19 @@ async def stream_claude_response(
         "--dangerously-skip-permissions",
         "--model",
         model,
-        "--",
-        prompt,
     ]
 
-    if system_prompt:
-        # Insert system prompt args before the -- separator
-        separator_idx = cmd.index("--")
-        cmd[separator_idx:separator_idx] = ["--system-prompt", system_prompt]
+    # Session persistence
+    if resume_session and session_id:
+        cmd.extend(["--resume", session_id])
+    elif session_id:
+        cmd.extend(["--session-id", session_id])
+
+    # System prompt (only on first message, not when resuming)
+    if system_prompt and not resume_session:
+        cmd.extend(["--system-prompt", system_prompt])
+
+    cmd.extend(["--", prompt])
 
     # Clear ANTHROPIC_API_KEY to force subscription/CLI auth mode
     env = os.environ.copy()
@@ -141,6 +161,7 @@ async def stream_claude_response(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            cwd=cwd,
         )
     except FileNotFoundError:
         yield {"type": "error", "content": "Claude CLI binary not found"}
@@ -150,7 +171,7 @@ async def stream_claude_response(
         return
 
     try:
-        async with asyncio.timeout(120):
+        async with asyncio.timeout(timeout_seconds):
             while True:
                 line = await process.stdout.readline()
                 if not line:
@@ -169,26 +190,42 @@ async def stream_claude_response(
                 event_type = event.get("type", "")
 
                 if event_type == "assistant" and "message" in event:
-                    # Start of assistant message — skip
-                    continue
+                    # Claude CLI stream-json emits complete assistant messages
+                    # with content blocks (text, thinking, tool_use)
+                    message = event.get("message", {})
+                    content_blocks = message.get("content", [])
+                    for block in content_blocks:
+                        block_type = block.get("type", "")
+                        if block_type == "text":
+                            text = block.get("text", "")
+                            if text:
+                                yield {"type": "text", "content": text}
+                        elif block_type == "thinking":
+                            thinking = block.get("thinking", "")
+                            if thinking:
+                                yield {"type": "thinking", "content": thinking}
+                        elif block_type == "tool_use":
+                            yield {
+                                "type": "tool_call",
+                                "content": {
+                                    "id": block.get("id", ""),
+                                    "name": block.get("name", ""),
+                                    "arguments": block.get("input", {}),
+                                },
+                            }
 
-                elif event_type == "content_block_start":
-                    block = event.get("content_block", {})
-                    if block.get("type") == "thinking":
-                        yield {"type": "thinking_start", "content": ""}
-                    elif block.get("type") == "text":
-                        yield {"type": "text_start", "content": ""}
-
-                elif event_type == "content_block_delta":
-                    delta = event.get("delta", {})
-                    delta_type = delta.get("type", "")
-                    if delta_type == "thinking_delta":
-                        yield {"type": "thinking", "content": delta.get("thinking", "")}
-                    elif delta_type == "text_delta":
-                        yield {"type": "text", "content": delta.get("text", "")}
-
-                elif event_type == "content_block_stop":
-                    yield {"type": "content_block_stop", "content": ""}
+                elif event_type == "user":
+                    # Tool results come back as user messages
+                    content_blocks = event.get("message", {}).get("content", [])
+                    for block in content_blocks:
+                        if block.get("type") == "tool_result":
+                            yield {
+                                "type": "tool_result",
+                                "content": {
+                                    "tool_use_id": block.get("tool_use_id", ""),
+                                    "content": block.get("content", ""),
+                                },
+                            }
 
                 elif event_type == "result":
                     # Final result with usage info
@@ -216,7 +253,7 @@ async def stream_claude_response(
 
     except TimeoutError:
         process.kill()
-        yield {"type": "error", "content": "Request timed out after 120 seconds"}
+        yield {"type": "error", "content": f"Request timed out after {timeout_seconds} seconds"}
     except asyncio.CancelledError:
         process.kill()
         raise

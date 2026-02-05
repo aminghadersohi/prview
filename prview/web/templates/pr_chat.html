@@ -1,0 +1,864 @@
+{% extends "base.html" %}
+
+{% block title %}prview - Agent - {{ repo }}#{{ number }}{% endblock %}
+
+{% block nav_dashboard %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+    .chat-main {
+        max-width: 900px;
+        padding: 20px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 60px);
+    }
+
+    /* PR header bar */
+    .pr-header-bar {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 20px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+    }
+
+    .pr-header-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .pr-header-repo {
+        color: var(--accent-cyan);
+        font-size: 13px;
+        flex-shrink: 0;
+    }
+
+    .pr-header-title {
+        font-size: 15px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .pr-header-links {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    /* Worktree status bar */
+    .worktree-bar {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 16px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+
+    .worktree-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .worktree-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--text-muted);
+    }
+
+    .worktree-dot.active {
+        background: var(--success);
+    }
+
+    .worktree-dot.loading {
+        background: var(--warning);
+        animation: pulse 1s infinite;
+    }
+
+    .worktree-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    /* Chat messages area */
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .chat-message {
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.6;
+        max-width: 85%;
+    }
+
+    .chat-message.user {
+        background: var(--bg-selected);
+        align-self: flex-end;
+        border: 1px solid rgba(86, 156, 214, 0.3);
+    }
+
+    .chat-message.assistant {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        align-self: flex-start;
+    }
+
+    .chat-message.assistant .msg-content {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .chat-message.assistant .msg-content p {
+        margin: 0 0 8px 0;
+    }
+    .chat-message.assistant .msg-content p:last-child {
+        margin-bottom: 0;
+    }
+    .chat-message.assistant .msg-content pre {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 8px 0;
+        overflow-x: auto;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
+    }
+    .chat-message.assistant .msg-content code {
+        background: var(--bg-tertiary);
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 12px;
+    }
+    .chat-message.assistant .msg-content pre code {
+        background: none;
+        padding: 0;
+    }
+    .chat-message.assistant .msg-content ul,
+    .chat-message.assistant .msg-content ol {
+        margin: 4px 0;
+        padding-left: 20px;
+    }
+    .chat-message.assistant .msg-content li {
+        margin-bottom: 2px;
+    }
+    .chat-message.assistant .msg-content blockquote {
+        border-left: 3px solid var(--border);
+        margin: 8px 0;
+        padding: 4px 12px;
+        color: var(--text-secondary);
+    }
+    .chat-message.assistant .msg-content table {
+        border-collapse: collapse;
+        margin: 8px 0;
+        width: 100%;
+        font-size: 12px;
+    }
+    .chat-message.assistant .msg-content th,
+    .chat-message.assistant .msg-content td {
+        border: 1px solid var(--border);
+        padding: 6px 10px;
+        text-align: left;
+    }
+    .chat-message.assistant .msg-content th {
+        background: var(--bg-tertiary);
+        font-weight: 600;
+    }
+    .chat-message.assistant .msg-content hr {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 12px 0;
+    }
+    .chat-message.assistant .msg-content a {
+        color: var(--accent-cyan);
+    }
+    .chat-message.assistant .msg-content h1,
+    .chat-message.assistant .msg-content h2,
+    .chat-message.assistant .msg-content h3 {
+        margin: 12px 0 6px 0;
+        font-size: 14px;
+    }
+    .chat-message.assistant .msg-content del {
+        color: var(--text-muted);
+    }
+
+    .msg-meta {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 6px;
+    }
+
+    .chat-empty {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-muted);
+        font-size: 13px;
+    }
+
+    /* Streaming indicator */
+    .streaming-indicator {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    .streaming-indicator.active {
+        display: flex;
+    }
+    .streaming-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--accent-blue);
+        border-radius: 50%;
+        animation: pulse 1s infinite;
+    }
+
+    /* Input area */
+    .chat-input-area {
+        flex-shrink: 0;
+        border-top: 1px solid var(--border);
+        padding: 12px 0 0;
+    }
+
+    .chat-input-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+    }
+
+    .chat-textarea {
+        flex: 1;
+        min-height: 60px;
+        max-height: 200px;
+        padding: 10px 12px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 13px;
+        line-height: 1.5;
+        resize: vertical;
+    }
+
+    .chat-textarea:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .chat-controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 8px;
+    }
+
+    .chat-controls-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .chat-controls-right {
+        display: flex;
+        gap: 6px;
+    }
+
+    /* Diff modal */
+    .diff-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.7);
+        z-index: 200;
+        align-items: center;
+        justify-content: center;
+    }
+    .diff-overlay.active {
+        display: flex;
+    }
+    .diff-modal {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        width: 80%;
+        max-width: 900px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .diff-modal-header {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+    }
+    .diff-modal-body {
+        flex: 1;
+        overflow: auto;
+        padding: 16px 20px;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        white-space: pre;
+    }
+    .diff-line-add { color: var(--success); }
+    .diff-line-remove { color: var(--error); }
+    .diff-line-hunk { color: var(--accent-blue); }
+
+    /* Push modal */
+    .push-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.7);
+        z-index: 200;
+        align-items: center;
+        justify-content: center;
+    }
+    .push-overlay.active {
+        display: flex;
+    }
+    .push-modal {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        width: 500px;
+        padding: 20px;
+    }
+    .push-modal h3 {
+        margin-bottom: 12px;
+        font-size: 15px;
+    }
+    .push-modal textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 10px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 13px;
+        resize: vertical;
+        margin-bottom: 12px;
+    }
+    .push-modal textarea:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+    .push-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block main_class %}chat-main{% endblock %}
+
+{% block content %}
+    <!-- PR Header -->
+    <div class="pr-header-bar">
+        <div class="pr-header-info">
+            <span class="pr-header-repo">{{ repo }}#{{ number }}</span>
+            <span class="pr-header-title">{{ pr_title }}</span>
+        </div>
+        <div class="pr-header-links">
+            <a href="/" class="btn btn-sm">&#x2190; Dashboard</a>
+            <a href="/pr/{{ repo }}/{{ number }}/comments" class="btn btn-sm">Comments</a>
+            <a href="{{ pr_url }}" target="_blank" class="btn btn-sm">GitHub</a>
+        </div>
+    </div>
+
+    <!-- Worktree status bar -->
+    <div class="worktree-bar" id="worktree-bar">
+        <div class="worktree-status">
+            <span class="worktree-dot" id="wt-dot"></span>
+            <span id="wt-label">Checking worktree...</span>
+        </div>
+        <div class="worktree-actions" id="wt-actions">
+            <button class="btn btn-sm btn-primary" id="btn-setup-wt" onclick="setupWorktree()" style="display:none;">Setup Worktree</button>
+            <button class="btn btn-sm" id="btn-sync-wt" onclick="syncWorktree()" style="display:none;">Sync</button>
+            <button class="btn btn-sm" id="btn-diff-wt" onclick="showDiff()" style="display:none;">Review Changes</button>
+            <button class="btn btn-sm" id="btn-push-wt" onclick="showPushModal()" style="display:none;">Push to PR</button>
+        </div>
+    </div>
+
+    <!-- Chat messages -->
+    <div class="chat-messages" id="chat-messages">
+        {% if messages %}
+            {% for msg in messages %}
+            <div class="chat-message {{ msg.role }}">
+                <div class="msg-content" data-raw="{{ msg.content | e }}"></div>
+                {% if msg.role == 'assistant' and msg.cost_usd %}
+                <div class="msg-meta">
+                    {{ msg.model or '' }}
+                    {% if msg.input_tokens %} | {{ msg.input_tokens }} in / {{ msg.output_tokens }} out{% endif %}
+                    {% if msg.cost_usd %} | ${{ "%.4f"|format(msg.cost_usd) }}{% endif %}
+                    {% if msg.duration_ms %} | {{ (msg.duration_ms / 1000)|round(1) }}s{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="chat-empty" id="chat-empty">
+                Send a message to start working on this PR with the AI agent.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Streaming indicator -->
+    <div class="streaming-indicator" id="streaming-indicator">
+        <span class="streaming-dot"></span>
+        <span>AI is responding...</span>
+    </div>
+
+    <!-- Input area -->
+    <div class="chat-input-area">
+        <div class="chat-input-row">
+            <textarea class="chat-textarea" id="chat-input"
+                      placeholder="Ask the agent to make changes..."
+                      onkeydown="handleKeydown(event)">{{ prompt_prefill }}</textarea>
+            <button class="btn btn-primary" id="btn-send" onclick="sendMessage()">Send</button>
+        </div>
+        <div class="chat-controls">
+            <div class="chat-controls-left">
+                <label style="font-size: 11px; color: var(--text-muted);">Model:</label>
+                <select class="form-input" id="model-select" style="width: auto; padding: 4px 8px; font-size: 12px;">
+                    {% for model in claude_models %}
+                    <option value="{{ model.id }}" {% if model.id == selected_model %}selected{% endif %}>
+                        {{ model.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="chat-controls-right">
+                <button class="btn btn-sm" onclick="clearChat()" title="Clear chat history">Clear Chat</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diff modal -->
+    <div class="diff-overlay" id="diff-overlay" onclick="closeDiffModal(event)">
+        <div class="diff-modal">
+            <div class="diff-modal-header">
+                <span>Changes in worktree</span>
+                <button class="btn btn-sm" onclick="document.getElementById('diff-overlay').classList.remove('active')">Close</button>
+            </div>
+            <div class="diff-modal-body" id="diff-content">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Push modal -->
+    <div class="push-overlay" id="push-overlay" onclick="closePushModal(event)">
+        <div class="push-modal">
+            <h3>Push Changes to PR</h3>
+            <textarea id="commit-message" placeholder="Commit message..."></textarea>
+            <div class="push-modal-actions">
+                <button class="btn btn-sm" onclick="document.getElementById('push-overlay').classList.remove('active')">Cancel</button>
+                <button class="btn btn-sm btn-primary" onclick="pushChanges()">Commit &amp; Push</button>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
+<script>
+    // Configure marked
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({ gfm: true, breaks: true });
+        var mdRenderer = new marked.Renderer();
+        var origLink = mdRenderer.link;
+        mdRenderer.link = function(token) {
+            var html = origLink.call(this, token);
+            return html.replace('<a ', '<a target="_blank" ');
+        };
+        marked.use({ renderer: mdRenderer });
+    }
+
+    function renderMarkdown(text) {
+        if (!text) return '';
+        if (typeof marked !== 'undefined') {
+            return marked.parse(text);
+        }
+        // Fallback
+        var div = document.createElement('div');
+        div.textContent = text;
+        return '<p>' + div.innerHTML.replace(/\n/g, '<br>') + '</p>';
+    }
+</script>
+<script>
+    var repo = {{ repo | tojson }};
+    var number = {{ number | tojson }};
+    var chatMessages = document.getElementById('chat-messages');
+    var chatInput = document.getElementById('chat-input');
+    var chatEmpty = document.getElementById('chat-empty');
+    var streamingIndicator = document.getElementById('streaming-indicator');
+    var btnSend = document.getElementById('btn-send');
+    var isStreaming = false;
+
+    // Scroll to bottom
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Check worktree status on load
+    async function checkWorktreeStatus() {
+        try {
+            var resp = await fetch('/api/pr/' + repo + '/' + number + '/worktree/status');
+            var data = await resp.json();
+            var dot = document.getElementById('wt-dot');
+            var label = document.getElementById('wt-label');
+            var btnSetup = document.getElementById('btn-setup-wt');
+            var btnSync = document.getElementById('btn-sync-wt');
+            var btnDiff = document.getElementById('btn-diff-wt');
+            var btnPush = document.getElementById('btn-push-wt');
+
+            if (data.exists) {
+                dot.className = 'worktree-dot active';
+                var info = 'Worktree ready: ' + data.branch;
+                if (data.has_changes) {
+                    info += ' (' + data.changed_files.length + ' changed)';
+                }
+                label.textContent = info;
+                btnSetup.style.display = 'none';
+                btnSync.style.display = '';
+                btnDiff.style.display = data.has_changes ? '' : 'none';
+                btnPush.style.display = data.has_changes ? '' : 'none';
+            } else {
+                dot.className = 'worktree-dot';
+                label.textContent = 'No worktree — setup required for code changes';
+                btnSetup.style.display = '';
+                btnSync.style.display = 'none';
+                btnDiff.style.display = 'none';
+                btnPush.style.display = 'none';
+            }
+        } catch (err) {
+            document.getElementById('wt-label').textContent = 'Could not check worktree';
+        }
+    }
+
+    async function setupWorktree() {
+        var dot = document.getElementById('wt-dot');
+        var label = document.getElementById('wt-label');
+        var btnSetup = document.getElementById('btn-setup-wt');
+        dot.className = 'worktree-dot loading';
+        label.textContent = 'Setting up worktree (cloning repo)...';
+        btnSetup.disabled = true;
+
+        try {
+            var resp = await fetch('/api/pr/' + repo + '/' + number + '/worktree/setup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            var data = await resp.json();
+            if (data.error) {
+                dot.className = 'worktree-dot';
+                label.textContent = 'Setup failed: ' + data.error;
+                btnSetup.disabled = false;
+                return;
+            }
+            checkWorktreeStatus();
+        } catch (err) {
+            dot.className = 'worktree-dot';
+            label.textContent = 'Setup failed: ' + err.message;
+            btnSetup.disabled = false;
+        }
+    }
+
+    async function syncWorktree() {
+        document.getElementById('wt-label').textContent = 'Syncing...';
+        try {
+            var resp = await fetch('/api/pr/' + repo + '/' + number + '/worktree/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            var data = await resp.json();
+            checkWorktreeStatus();
+        } catch (err) {
+            document.getElementById('wt-label').textContent = 'Sync failed: ' + err.message;
+        }
+    }
+
+    async function showDiff() {
+        var overlay = document.getElementById('diff-overlay');
+        var content = document.getElementById('diff-content');
+        overlay.classList.add('active');
+        content.textContent = 'Loading diff...';
+
+        try {
+            var resp = await fetch('/api/pr/' + repo + '/' + number + '/worktree/diff');
+            var data = await resp.json();
+            if (!data.diff || !data.diff.trim()) {
+                content.textContent = 'No changes detected.';
+                return;
+            }
+            // Render diff with colors
+            var lines = data.diff.split('\n');
+            var html = '';
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                var cls = '';
+                if (line.startsWith('+')) cls = 'diff-line-add';
+                else if (line.startsWith('-')) cls = 'diff-line-remove';
+                else if (line.startsWith('@@')) cls = 'diff-line-hunk';
+                html += '<span class="' + cls + '">' + escapeHtml(line) + '</span>\n';
+            }
+            content.innerHTML = html;
+        } catch (err) {
+            content.textContent = 'Failed to load diff: ' + err.message;
+        }
+    }
+
+    function closeDiffModal(event) {
+        if (event.target === document.getElementById('diff-overlay')) {
+            document.getElementById('diff-overlay').classList.remove('active');
+        }
+    }
+
+    function showPushModal() {
+        document.getElementById('push-overlay').classList.add('active');
+        document.getElementById('commit-message').focus();
+    }
+
+    function closePushModal(event) {
+        if (event.target === document.getElementById('push-overlay')) {
+            document.getElementById('push-overlay').classList.remove('active');
+        }
+    }
+
+    async function pushChanges() {
+        var msg = document.getElementById('commit-message').value.trim();
+        if (!msg) {
+            alert('Commit message is required.');
+            return;
+        }
+
+        try {
+            var resp = await fetch('/api/pr/' + repo + '/' + number + '/worktree/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg }),
+            });
+            var data = await resp.json();
+            if (data.error) {
+                alert('Push failed: ' + data.error);
+                return;
+            }
+            document.getElementById('push-overlay').classList.remove('active');
+            document.getElementById('commit-message').value = '';
+            checkWorktreeStatus();
+        } catch (err) {
+            alert('Push failed: ' + err.message);
+        }
+    }
+
+    function addMessageToUI(role, content, meta) {
+        if (chatEmpty) {
+            chatEmpty.remove();
+            chatEmpty = null;
+        }
+        var div = document.createElement('div');
+        div.className = 'chat-message ' + role;
+        var contentDiv = document.createElement('div');
+        contentDiv.className = 'msg-content';
+
+        if (role === 'assistant' && content) {
+            contentDiv.innerHTML = renderMarkdown(content);
+        } else {
+            contentDiv.textContent = content;
+        }
+        div.appendChild(contentDiv);
+
+        if (meta) {
+            var metaDiv = document.createElement('div');
+            metaDiv.className = 'msg-meta';
+            metaDiv.textContent = meta;
+            div.appendChild(metaDiv);
+        }
+        chatMessages.appendChild(div);
+        scrollToBottom();
+        return contentDiv;
+    }
+
+    function handleKeydown(event) {
+        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            sendMessage();
+        }
+    }
+
+    async function sendMessage() {
+        if (isStreaming) return;
+        var msg = chatInput.value.trim();
+        if (!msg) return;
+
+        isStreaming = true;
+        btnSend.disabled = true;
+        chatInput.value = '';
+
+        // Add user message to UI
+        addMessageToUI('user', msg);
+
+        // Show streaming indicator
+        streamingIndicator.classList.add('active');
+
+        // Create assistant message placeholder
+        var assistantContent = addMessageToUI('assistant', '');
+
+        var model = document.getElementById('model-select').value;
+
+        try {
+            var resp = await fetch('/pr/' + repo + '/' + number + '/chat/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg, model: model }),
+            });
+
+            var reader = resp.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+            var text = '';
+            var usageInfo = null;
+
+            while (true) {
+                var result = await reader.read();
+                if (result.done) break;
+
+                buffer += decoder.decode(result.value, { stream: true });
+                var lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i];
+                    if (!line.startsWith('data: ')) continue;
+                    var event;
+                    try { event = JSON.parse(line.slice(6)); } catch(e) { continue; }
+
+                    if (event.type === 'text' || event.type === 'text_start') {
+                        text += event.content || '';
+                        assistantContent.textContent = text;
+                        scrollToBottom();
+                    } else if (event.type === 'usage') {
+                        usageInfo = event.content;
+                    } else if (event.type === 'error') {
+                        text += '\n[Error: ' + (event.content || 'unknown') + ']';
+                        assistantContent.textContent = text;
+                    } else if (event.type === 'done') {
+                        // Render final markdown
+                        if (text) {
+                            assistantContent.innerHTML = renderMarkdown(text);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Add usage meta
+            if (usageInfo && typeof usageInfo === 'object') {
+                var metaParts = [];
+                if (usageInfo.input_tokens) metaParts.push(usageInfo.input_tokens + ' in / ' + usageInfo.output_tokens + ' out');
+                if (usageInfo.cost_usd) metaParts.push('$' + usageInfo.cost_usd.toFixed(4));
+                if (usageInfo.duration_ms) metaParts.push((usageInfo.duration_ms / 1000).toFixed(1) + 's');
+                if (metaParts.length > 0) {
+                    var metaDiv = document.createElement('div');
+                    metaDiv.className = 'msg-meta';
+                    metaDiv.textContent = metaParts.join(' | ');
+                    assistantContent.parentElement.appendChild(metaDiv);
+                }
+            }
+
+            // Refresh worktree status (agent may have changed files)
+            checkWorktreeStatus();
+
+        } catch (err) {
+            assistantContent.textContent = '[Failed: ' + err.message + ']';
+        }
+
+        isStreaming = false;
+        btnSend.disabled = false;
+        streamingIndicator.classList.remove('active');
+        chatInput.focus();
+    }
+
+    async function clearChat() {
+        if (!confirm('Clear all chat history and session for this PR?')) return;
+
+        try {
+            await fetch('/api/pr/' + repo + '/' + number + '/chat/clear', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            // Reload page
+            window.location.reload();
+        } catch (err) {
+            alert('Failed to clear chat: ' + err.message);
+        }
+    }
+
+    // Render stored messages with markdown on page load
+    (function() {
+        var msgDivs = document.querySelectorAll('.chat-message .msg-content[data-raw]');
+        msgDivs.forEach(function(el) {
+            var raw = el.getAttribute('data-raw');
+            if (!raw) return;
+            var parent = el.closest('.chat-message');
+            if (parent && parent.classList.contains('assistant')) {
+                el.innerHTML = renderMarkdown(raw);
+            } else {
+                el.textContent = raw;
+            }
+        });
+    })();
+
+    // Init
+    checkWorktreeStatus();
+    scrollToBottom();
+
+    // Auto-focus input if there's a prefill
+    if (chatInput.value.trim()) {
+        chatInput.focus();
+    }
+</script>
+{% endblock %}

@@ -7,7 +7,9 @@
 {% block extra_head %}
 <style>
     .comments-main {
-        max-width: 960px;
+        max-width: 1000px;
+        padding: 20px;
+        margin: 0 auto;
     }
 
     /* PR header bar */
@@ -15,7 +17,7 @@
         background: var(--bg-secondary);
         border: 1px solid var(--border);
         border-radius: 8px;
-        padding: 16px 20px;
+        padding: 14px 20px;
         margin-bottom: 20px;
         display: flex;
         align-items: center;
@@ -26,25 +28,31 @@
         display: flex;
         align-items: center;
         gap: 12px;
+        min-width: 0;
     }
 
     .pr-header-repo {
         color: var(--accent-cyan);
         font-size: 13px;
+        flex-shrink: 0;
     }
 
     .pr-header-title {
         font-size: 15px;
         font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .pr-header-links {
         display: flex;
         gap: 8px;
+        flex-shrink: 0;
     }
 
-    /* Progress bar */
-    .progress-bar {
+    /* Summary bar */
+    .comments-summary {
         background: var(--bg-secondary);
         border: 1px solid var(--border);
         border-radius: 6px;
@@ -57,62 +65,234 @@
         color: var(--text-secondary);
     }
 
-    .progress-dots {
+    .summary-stats {
         display: flex;
-        gap: 6px;
+        gap: 16px;
     }
 
-    .progress-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--bg-tertiary);
+    .summary-stat {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .summary-stat .count {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .summary-stat.resolved .count {
+        color: var(--success);
+    }
+
+    .summary-stat.unresolved .count {
+        color: var(--warning);
+    }
+
+    .summary-stat.addressed .count {
+        color: var(--accent-blue);
+    }
+
+    /* Filter toggle */
+    .filter-toggle {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .filter-btn {
+        padding: 3px 10px;
+        font-size: 11px;
+        border-radius: 10px;
         border: 1px solid var(--border);
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
         cursor: pointer;
         transition: all 0.15s ease;
     }
 
-    .progress-dot.current {
-        background: var(--accent-blue);
+    .filter-btn.active {
+        background: var(--bg-selected);
+        border-color: var(--accent-blue);
+        color: var(--text-primary);
+    }
+
+    .filter-btn:hover {
         border-color: var(--accent-blue);
     }
 
-    .progress-dot.addressed {
-        background: var(--success);
-        border-color: var(--success);
+    /* File group */
+    .file-group {
+        margin-bottom: 24px;
     }
 
-    .progress-dot.skipped {
-        background: var(--text-muted);
-        border-color: var(--text-muted);
+    .file-group-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
+        color: var(--accent-yellow);
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 12px;
     }
 
-    /* Comment card */
+    .file-group-count {
+        color: var(--text-muted);
+        font-family: inherit;
+    }
+
+    /* Comment card (thread) */
     .comment-card {
         background: var(--bg-secondary);
         border: 1px solid var(--border);
         border-radius: 8px;
         overflow: hidden;
-        margin-bottom: 20px;
+        margin-bottom: 12px;
+        transition: border-color 0.15s ease;
     }
 
-    .comment-file {
-        padding: 10px 16px;
+    .comment-card.resolved-card {
+        border-color: rgba(137, 209, 133, 0.4);
+    }
+
+    .comment-card.resolved-card.collapsed .reviewer-section,
+    .comment-card.resolved-card.collapsed .thread-replies,
+    .comment-card.resolved-card.collapsed .diff-toggle,
+    .comment-card.resolved-card.collapsed .diff-hunk {
+        display: none;
+    }
+
+    .comment-card.resolved-card.collapsed .comment-header {
+        cursor: pointer;
+    }
+
+    .comment-card.resolved-card.collapsed .comment-header .resolved-summary {
+        display: inline;
+    }
+
+    .resolved-summary {
+        display: none;
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-left: 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 400px;
+    }
+
+    .comment-card.outdated-card {
+        opacity: 0.6;
+    }
+
+    .comment-card.addressed {
+        border-color: var(--accent-blue);
+    }
+
+    .comment-card.skipped {
+        opacity: 0.6;
+    }
+
+    /* Comment header with line info + status */
+    .comment-header {
+        padding: 8px 16px;
         background: var(--bg-tertiary);
         border-bottom: 1px solid var(--border);
-        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         font-size: 12px;
-        color: var(--accent-yellow);
+    }
+
+    .comment-header-left {
         display: flex;
         align-items: center;
         gap: 8px;
     }
 
-    .comment-file-line {
+    .comment-location {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         color: var(--text-secondary);
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    }
+
+    .comment-location .line-num {
+        color: var(--accent-cyan);
+    }
+
+    .comment-header-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .thread-badge {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 500;
+    }
+
+    .thread-badge.resolved {
+        background: rgba(137, 209, 133, 0.2);
+        color: var(--success);
+    }
+
+    .thread-badge.outdated {
+        background: var(--bg-tertiary);
+        color: var(--text-muted);
+    }
+
+    .thread-badge.unresolved {
+        background: rgba(204, 167, 0, 0.15);
+        color: var(--warning);
+    }
+
+    .comment-status-badge {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 500;
+    }
+
+    .comment-status-badge.addressed {
+        background: rgba(86, 156, 214, 0.2);
+        color: var(--accent-blue);
+    }
+
+    .comment-status-badge.skipped {
+        background: var(--bg-tertiary);
+        color: var(--text-muted);
+    }
+
+    .reply-count-badge {
+        color: var(--text-muted);
+        font-size: 11px;
     }
 
     /* Diff hunk */
+    .diff-toggle {
+        padding: 0;
+        border: none;
+        background: none;
+        color: var(--accent-blue);
+        font-size: 11px;
+        cursor: pointer;
+        padding: 6px 16px;
+        display: block;
+        width: 100%;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .diff-toggle:hover {
+        background: var(--bg-tertiary);
+    }
+
     .diff-hunk {
         background: var(--bg-primary);
         border-bottom: 1px solid var(--border);
@@ -123,6 +303,11 @@
         line-height: 1.6;
         max-height: 300px;
         overflow-y: auto;
+        display: none;
+    }
+
+    .diff-hunk.expanded {
+        display: block;
     }
 
     .diff-line {
@@ -145,10 +330,9 @@
         color: var(--accent-blue);
     }
 
-    /* Reviewer comment */
-    .reviewer-comment {
-        padding: 16px;
-        border-bottom: 1px solid var(--border);
+    /* Reviewer comment body (used for each comment in thread) */
+    .reviewer-section {
+        padding: 14px 16px;
     }
 
     .reviewer-info {
@@ -171,28 +355,135 @@
     .reviewer-body {
         font-size: 13px;
         line-height: 1.6;
-        white-space: pre-wrap;
         color: var(--text-primary);
     }
 
-    /* Draft reply area */
-    .draft-area {
-        padding: 16px;
+    .reviewer-body p { margin: 0 0 8px 0; }
+    .reviewer-body p:last-child { margin-bottom: 0; }
+
+    .reviewer-body pre {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 8px 0;
+        overflow-x: auto;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        font-size: 12px;
     }
 
-    .draft-label {
+    .reviewer-body code {
+        background: var(--bg-tertiary);
+        padding: 1px 4px;
+        border-radius: 3px;
         font-size: 12px;
+        font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    }
+
+    .reviewer-body pre code { background: none; padding: 0; }
+
+    .reviewer-body blockquote {
+        border-left: 3px solid var(--border);
+        margin: 8px 0;
+        padding: 4px 12px;
         color: var(--text-secondary);
-        margin-bottom: 8px;
+    }
+
+    .reviewer-body ul, .reviewer-body ol {
+        margin: 4px 0;
+        padding-left: 20px;
+    }
+
+    .reviewer-body a { color: var(--accent-cyan); }
+
+    .reviewer-body h1, .reviewer-body h2, .reviewer-body h3,
+    .reviewer-body h4, .reviewer-body h5, .reviewer-body h6 {
+        margin: 12px 0 6px 0;
+        font-size: 14px;
+    }
+
+    .reviewer-body details { margin: 8px 0; }
+    .reviewer-body details summary {
+        cursor: pointer;
+        color: var(--accent-blue);
+        font-size: 12px;
+    }
+    .reviewer-body img { max-width: 100%; border-radius: 4px; }
+
+    .reviewer-body table {
+        border-collapse: collapse;
+        margin: 8px 0;
+        width: 100%;
+        font-size: 12px;
+    }
+    .reviewer-body th, .reviewer-body td {
+        border: 1px solid var(--border);
+        padding: 6px 10px;
+        text-align: left;
+    }
+    .reviewer-body th { background: var(--bg-tertiary); font-weight: 600; }
+    .reviewer-body hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+    .reviewer-body del { color: var(--text-muted); }
+    .reviewer-body input[type="checkbox"] { margin-right: 4px; accent-color: var(--accent-blue); }
+    .reviewer-body li { margin-bottom: 2px; }
+
+    .reviewer-body .suggestion-block {
+        background: rgba(137, 209, 133, 0.08);
+        border: 1px solid rgba(137, 209, 133, 0.2);
+        border-radius: 4px;
+        padding: 8px 12px;
+        margin: 8px 0;
+    }
+    .reviewer-body .suggestion-block pre {
+        background: rgba(137, 209, 133, 0.05);
+        border-color: rgba(137, 209, 133, 0.15);
+    }
+
+    /* Thread replies */
+    .thread-replies {
+        border-top: 1px dashed var(--border);
+    }
+
+    .thread-reply {
+        padding: 10px 16px 10px 32px;
+        border-bottom: 1px dashed var(--border);
+        position: relative;
+    }
+
+    .thread-reply:last-child {
+        border-bottom: none;
+    }
+
+    .thread-reply::before {
+        content: '';
+        position: absolute;
+        left: 20px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border);
+    }
+
+    .thread-reply .reviewer-info {
+        margin-bottom: 4px;
+    }
+
+    /* Reply area */
+    .reply-area {
+        border-top: 1px solid var(--border);
+        padding: 12px 16px;
+    }
+
+    .reply-actions-row {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
     }
 
-    .draft-textarea {
+    .reply-textarea {
         width: 100%;
-        min-height: 120px;
-        padding: 12px;
+        min-height: 100px;
+        padding: 10px 12px;
         background: var(--bg-primary);
         border: 1px solid var(--border);
         border-radius: 6px;
@@ -201,41 +492,34 @@
         font-size: 13px;
         line-height: 1.6;
         resize: vertical;
+        margin-top: 10px;
+        display: none;
     }
 
-    .draft-textarea:focus {
-        outline: none;
-        border-color: var(--accent-blue);
-    }
+    .reply-textarea.visible { display: block; }
+    .reply-textarea:focus { outline: none; border-color: var(--accent-blue); }
 
-    .draft-actions {
-        display: flex;
-        gap: 8px;
-        margin-top: 12px;
+    .reply-submit-row {
+        display: none;
         justify-content: flex-end;
+        gap: 8px;
+        margin-top: 8px;
     }
+
+    .reply-submit-row.visible { display: flex; }
 
     .btn-success {
         background: var(--accent-green);
         border-color: var(--accent-green);
         color: white;
     }
+    .btn-success:hover { background: #5a8a48; }
 
-    .btn-success:hover {
-        background: #5a8a48;
+    .btn-skip {
+        color: var(--text-muted);
+        border-color: var(--border);
     }
-
-    /* Navigation buttons */
-    .comment-nav {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .comment-nav-group {
-        display: flex;
-        gap: 8px;
-    }
+    .btn-skip:hover { color: var(--text-secondary); }
 
     /* Streaming indicator */
     .draft-streaming {
@@ -247,9 +531,7 @@
         padding: 8px 0;
     }
 
-    .draft-streaming.active {
-        display: flex;
-    }
+    .draft-streaming.active { display: flex; }
 
     .streaming-dot {
         width: 6px;
@@ -267,22 +549,9 @@
         border: 1px solid var(--border);
         border-radius: 8px;
     }
-
-    .all-done-icon {
-        font-size: 48px;
-        margin-bottom: 16px;
-    }
-
-    .all-done-title {
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 8px;
-    }
-
-    .all-done-summary {
-        color: var(--text-secondary);
-        margin-bottom: 20px;
-    }
+    .all-done-icon { font-size: 48px; margin-bottom: 16px; }
+    .all-done-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .all-done-summary { color: var(--text-secondary); margin-bottom: 20px; }
 </style>
 {% endblock %}
 
@@ -301,207 +570,483 @@
         </div>
     </div>
 
-    <!-- Progress -->
-    <div class="progress-bar" id="progress-bar">
-        <span id="progress-text">Loading comments...</span>
-        <div class="progress-dots" id="progress-dots"></div>
+    <!-- Summary bar -->
+    <div class="comments-summary" id="comments-summary" style="display: none;">
+        <div class="summary-stats">
+            <div class="summary-stat">
+                <span class="count" id="total-count">0</span> threads
+            </div>
+            <div class="summary-stat resolved">
+                <span class="count" id="resolved-count">0</span> resolved
+            </div>
+            <div class="summary-stat unresolved">
+                <span class="count" id="unresolved-count">0</span> unresolved
+            </div>
+            <div class="summary-stat addressed">
+                <span class="count" id="addressed-count">0</span> replied
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <div class="filter-toggle">
+                <button class="filter-btn active" id="filter-all" onclick="setFilter('all')">All</button>
+                <button class="filter-btn" id="filter-unresolved" onclick="setFilter('unresolved')">Unresolved</button>
+                <button class="filter-btn" id="filter-resolved" onclick="setFilter('resolved')">Resolved</button>
+            </div>
+            <label style="font-size: 11px; color: var(--text-muted); margin-left: 8px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                <input type="checkbox" id="expand-resolved" onchange="toggleExpandResolved()" style="accent-color: var(--accent-blue);">
+                Expand resolved
+            </label>
+            <label style="font-size: 11px; color: var(--text-muted); margin-left: 8px;">Model:</label>
+            <select class="form-input" id="model-select" style="width: auto; padding: 4px 8px; font-size: 12px;">
+                {% for model in claude_models %}
+                <option value="{{ model.id }}" {% if model.id == selected_model %}selected{% endif %}>
+                    {{ model.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
 
     <!-- Comment display area -->
-    <div id="comment-area">
+    <div id="comments-list">
         <div class="empty-state">
             <div class="empty-icon">&#x1F4DD;</div>
             <div>Loading review comments...</div>
         </div>
     </div>
-
-    <!-- Navigation -->
-    <div class="comment-nav" id="comment-nav" style="display: none;">
-        <div class="comment-nav-group">
-            <button class="btn" id="prev-btn" disabled>&#x2190; Previous</button>
-        </div>
-        <div class="comment-nav-group">
-            <button class="btn" id="skip-btn">Skip</button>
-            <button class="btn" id="next-btn">Next &#x2192;</button>
-        </div>
-    </div>
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
 <script>
-    const commentArea = document.getElementById('comment-area');
-    const progressText = document.getElementById('progress-text');
-    const progressDots = document.getElementById('progress-dots');
-    const commentNav = document.getElementById('comment-nav');
-    const prevBtn = document.getElementById('prev-btn');
-    const nextBtn = document.getElementById('next-btn');
-    const skipBtn = document.getElementById('skip-btn');
+    var commentsList = document.getElementById('comments-list');
+    var commentsSummary = document.getElementById('comments-summary');
+    var totalCount = document.getElementById('total-count');
+    var resolvedCount = document.getElementById('resolved-count');
+    var unresolvedCount = document.getElementById('unresolved-count');
+    var addressedCount = document.getElementById('addressed-count');
 
-    let comments = [];
-    let currentIndex = 0;
-    let commentStates = {}; // comment_id -> 'addressed' | 'skipped' | null
-    let isStreaming = false;
+    var threads = [];
+    var threadStates = {}; // thread_id -> 'addressed' | 'skipped' | null
+    var streamingThreadId = null;
+    var currentFilter = 'all';
+    var expandResolved = false;
 
-    const repo = {{ repo | tojson }};
-    const number = {{ number | tojson }};
+    var repo = {{ repo | tojson }};
+    var number = {{ number | tojson }};
 
-    // Load comments
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Configure marked for GitHub Flavored Markdown
+    (function() {
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({ gfm: true, breaks: true });
+            var renderer = new marked.Renderer();
+            var origLink = renderer.link;
+            renderer.link = function(token) {
+                var html = origLink.call(this, token);
+                return html.replace('<a ', '<a target="_blank" ');
+            };
+            var origCode = renderer.code;
+            renderer.code = function(token) {
+                if (token.lang === 'suggestion') {
+                    return '<div class="suggestion-block"><strong>Suggested change:</strong><pre><code>' +
+                        escapeHtml(token.text) + '</code></pre></div>';
+                }
+                return origCode.call(this, token);
+            };
+            marked.use({ renderer: renderer });
+        }
+    })();
+
+    function renderCommentBody(body) {
+        if (!body) return '';
+        if (typeof marked !== 'undefined') {
+            return sanitizeHtml(marked.parse(body));
+        }
+        return '<p>' + escapeHtml(body).replace(/\n/g, '<br>') + '</p>';
+    }
+
+    function sanitizeHtml(html) {
+        var temp = document.createElement('div');
+        temp.innerHTML = html;
+        var scripts = temp.querySelectorAll('script, style, iframe, object, embed');
+        scripts.forEach(function(el) { el.remove(); });
+        var allEls = temp.querySelectorAll('*');
+        allEls.forEach(function(el) {
+            var attrs = Array.from(el.attributes);
+            attrs.forEach(function(attr) {
+                if (attr.name.startsWith('on')) {
+                    el.removeAttribute(attr.name);
+                }
+            });
+        });
+        return temp.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        try {
+            var d = new Date(dateStr);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        } catch(e) {
+            return dateStr;
+        }
+    }
+
+    function updateSummary() {
+        var resolved = 0;
+        var unresolved = 0;
+        var addressed = 0;
+        threads.forEach(function(t) {
+            if (t.isResolved) resolved++;
+            else unresolved++;
+        });
+        Object.values(threadStates).forEach(function(s) {
+            if (s === 'addressed') addressed++;
+        });
+        totalCount.textContent = threads.length;
+        resolvedCount.textContent = resolved;
+        unresolvedCount.textContent = unresolved;
+        addressedCount.textContent = addressed;
+    }
+
+    function setFilter(filter) {
+        currentFilter = filter;
+        document.querySelectorAll('.filter-btn').forEach(function(btn) {
+            btn.classList.remove('active');
+        });
+        document.getElementById('filter-' + filter).classList.add('active');
+        renderAllThreads();
+    }
+
+    function getFilteredThreads() {
+        if (currentFilter === 'resolved') {
+            return threads.filter(function(t) { return t.isResolved; });
+        }
+        if (currentFilter === 'unresolved') {
+            return threads.filter(function(t) { return !t.isResolved; });
+        }
+        return threads;
+    }
+
+    function updateCardState(threadId) {
+        var card = document.getElementById('card-' + threadId);
+        if (!card) return;
+        card.classList.remove('addressed', 'skipped');
+        var badge = card.querySelector('.comment-status-badge');
+
+        if (threadStates[threadId] === 'addressed') {
+            card.classList.add('addressed');
+            if (badge) {
+                badge.className = 'comment-status-badge addressed';
+                badge.textContent = 'Replied';
+                badge.style.display = '';
+            }
+        } else if (threadStates[threadId] === 'skipped') {
+            card.classList.add('skipped');
+            if (badge) {
+                badge.className = 'comment-status-badge skipped';
+                badge.textContent = 'Skipped';
+                badge.style.display = '';
+            }
+        } else {
+            if (badge) badge.style.display = 'none';
+        }
+        updateSummary();
+    }
+
+    // Load and render
     async function loadComments() {
         try {
-            const resp = await fetch(`/api/pr/${repo}/${number}/comments`);
-            const data = await resp.json();
-            comments = data.comments || [];
+            var resp = await fetch('/api/pr/' + repo + '/' + number + '/comments');
+            var data = await resp.json();
+            threads = data.threads || [];
 
-            if (comments.length === 0) {
-                commentArea.innerHTML = `
-                    <div class="all-done">
-                        <div class="all-done-icon">&#x2728;</div>
-                        <div class="all-done-title">No review comments</div>
-                        <div class="all-done-summary">This PR has no review comments to address.</div>
-                        <a href="/" class="btn btn-primary">Back to Dashboard</a>
-                    </div>`;
+            if (threads.length === 0) {
+                commentsList.innerHTML =
+                    '<div class="all-done">' +
+                    '<div class="all-done-icon">&#x2728;</div>' +
+                    '<div class="all-done-title">No review comments</div>' +
+                    '<div class="all-done-summary">This PR has no review comments to address.</div>' +
+                    '<a href="/" class="btn btn-primary">Back to Dashboard</a>' +
+                    '</div>';
                 return;
             }
 
-            // Build progress dots
-            progressDots.innerHTML = '';
-            comments.forEach((c, i) => {
-                const dot = document.createElement('div');
-                dot.className = 'progress-dot';
-                dot.title = `Comment ${i + 1}`;
-                dot.addEventListener('click', () => goToComment(i));
-                progressDots.appendChild(dot);
-            });
-
-            commentNav.style.display = 'flex';
-            showComment(0);
+            commentsSummary.style.display = 'flex';
+            updateSummary();
+            renderAllThreads();
         } catch (err) {
-            commentArea.innerHTML = `
-                <div class="alert error">
-                    Failed to load comments: ${err.message}
-                </div>`;
+            commentsList.innerHTML =
+                '<div class="alert error">Failed to load comments: ' + escapeHtml(err.message) + '</div>';
         }
     }
 
-    function goToComment(index) {
-        if (index < 0 || index >= comments.length || isStreaming) return;
-        currentIndex = index;
-        showComment(index);
-    }
+    function renderAllThreads() {
+        var filtered = getFilteredThreads();
 
-    function showComment(index) {
-        const comment = comments[index];
-        currentIndex = index;
-
-        // Update progress
-        progressText.textContent = `Comment ${index + 1} of ${comments.length}`;
-        const dots = progressDots.querySelectorAll('.progress-dot');
-        dots.forEach((dot, i) => {
-            dot.className = 'progress-dot';
-            if (i === index) dot.classList.add('current');
-            else if (commentStates[comments[i].id] === 'addressed') dot.classList.add('addressed');
-            else if (commentStates[comments[i].id] === 'skipped') dot.classList.add('skipped');
+        // Group by file
+        var groups = {};
+        var groupOrder = [];
+        filtered.forEach(function(t) {
+            var path = t.path || 'unknown';
+            if (!groups[path]) {
+                groups[path] = [];
+                groupOrder.push(path);
+            }
+            groups[path].push(t);
         });
 
-        // Update nav buttons
-        prevBtn.disabled = index === 0;
-        nextBtn.disabled = index === comments.length - 1;
+        if (filtered.length === 0) {
+            commentsList.innerHTML =
+                '<div class="empty-state">' +
+                '<div class="empty-icon">&#x1F50D;</div>' +
+                '<div>No ' + currentFilter + ' threads found</div>' +
+                '</div>';
+            return;
+        }
 
-        // Build diff lines
-        let diffHtml = '';
-        if (comment.diff_hunk) {
-            const lines = comment.diff_hunk.split('\n');
-            diffHtml = lines.map(line => {
-                let cls = '';
+        var html = '';
+        groupOrder.forEach(function(path) {
+            var fileThreads = groups[path];
+            html += '<div class="file-group">';
+            html += '<div class="file-group-header">' +
+                '&#x1F4C4; ' + escapeHtml(path) +
+                ' <span class="file-group-count">(' + fileThreads.length + ')</span>' +
+                '</div>';
+
+            fileThreads.forEach(function(thread) {
+                html += renderThreadCard(thread);
+            });
+
+            html += '</div>';
+        });
+
+        commentsList.innerHTML = html;
+    }
+
+    function renderThreadCard(thread) {
+        var firstComment = thread.comments[0];
+        var replies = thread.comments.slice(1);
+        var threadId = thread.thread_id;
+        // Use first comment's id for the reply API
+        var firstCommentId = firstComment.id;
+
+        // Diff hunk
+        var diffHtml = '';
+        if (thread.diff_hunk) {
+            var lines = thread.diff_hunk.split('\n');
+            diffHtml = lines.map(function(line) {
+                var cls = '';
                 if (line.startsWith('+')) cls = 'add';
                 else if (line.startsWith('-')) cls = 'remove';
                 else if (line.startsWith('@@')) cls = 'hunk-header';
-                return `<div class="diff-line ${cls}">${escapeHtml(line)}</div>`;
+                return '<div class="diff-line ' + cls + '">' + escapeHtml(line) + '</div>';
             }).join('');
         }
 
-        const stateLabel = commentStates[comment.id]
-            ? ` <span class="status-badge ${commentStates[comment.id] === 'addressed' ? 'success' : 'warning'}">${commentStates[comment.id]}</span>`
-            : '';
+        // Resolved / outdated badges
+        var badgeHtml = '';
+        if (thread.isResolved) {
+            badgeHtml += '<span class="thread-badge resolved">Resolved';
+            if (thread.resolvedBy) badgeHtml += ' by ' + escapeHtml(thread.resolvedBy);
+            badgeHtml += '</span>';
+        } else if (thread.isOutdated) {
+            badgeHtml += '<span class="thread-badge outdated">Outdated</span>';
+        } else {
+            badgeHtml += '<span class="thread-badge unresolved">Unresolved</span>';
+        }
 
-        commentArea.innerHTML = `
-            <div class="comment-card">
-                <div class="comment-file">
-                    &#x1F4C4; ${escapeHtml(comment.path || 'unknown')}
-                    ${comment.line ? `<span class="comment-file-line">:${comment.line}</span>` : ''}
-                    ${stateLabel}
-                </div>
-                ${diffHtml ? `<div class="diff-hunk">${diffHtml}</div>` : ''}
-                <div class="reviewer-comment">
-                    <div class="reviewer-info">
-                        <span class="reviewer-name">${escapeHtml(comment.user)}</span>
-                        <span class="reviewer-date">${comment.created_at || ''}</span>
-                    </div>
-                    <div class="reviewer-body">${escapeHtml(comment.body)}</div>
-                </div>
-                <div class="draft-area">
-                    <div class="draft-label">
-                        &#x1F4DD; Draft Reply
-                        <button class="btn btn-sm" id="generate-btn" onclick="generateDraft()">Generate with AI</button>
-                    </div>
-                    <div class="draft-streaming" id="draft-streaming">
-                        <span class="streaming-dot"></span>
-                        <span>AI is drafting a reply...</span>
-                    </div>
-                    <textarea class="draft-textarea" id="draft-textarea" placeholder="Write your reply or click 'Generate with AI'..."></textarea>
-                    <div class="draft-actions">
-                        <button class="btn" onclick="generateDraft()">&#x21bb; Regenerate</button>
-                        <button class="btn btn-success" onclick="submitReply()">&#x2713; Submit Reply</button>
-                    </div>
-                </div>
-            </div>`;
+        if (replies.length > 0) {
+            badgeHtml += '<span class="reply-count-badge">' + replies.length + ' repl' + (replies.length === 1 ? 'y' : 'ies') + '</span>';
+        }
 
-        // Auto-generate draft if not already addressed
-        if (!commentStates[comment.id]) {
-            generateDraft();
+        var cardClasses = 'comment-card';
+        if (thread.isResolved) {
+            cardClasses += ' resolved-card';
+            if (!expandResolved) cardClasses += ' collapsed';
+        }
+        if (thread.isOutdated) cardClasses += ' outdated-card';
+
+        // Preview of first comment for collapsed resolved view
+        var commentPreview = '';
+        if (firstComment.body) {
+            commentPreview = firstComment.body.replace(/\n/g, ' ').substring(0, 80);
+            if (firstComment.body.length > 80) commentPreview += '...';
+        }
+
+        var html = '<div class="' + cardClasses + '" id="card-' + threadId + '">';
+
+        // Header
+        var headerOnclick = thread.isResolved ? ' onclick="toggleResolvedCard(\'' + threadId + '\')"' : '';
+        html += '<div class="comment-header"' + headerOnclick + '>' +
+            '<div class="comment-header-left">' +
+            '<div class="comment-location">' +
+            (thread.line ? 'L<span class="line-num">' + thread.line + '</span>' : '') +
+            '</div>' +
+            '<span class="resolved-summary">' + escapeHtml(firstComment.user) + ': ' + escapeHtml(commentPreview) + '</span>' +
+            '</div>' +
+            '<div class="comment-header-right">' +
+            badgeHtml +
+            '<span class="comment-status-badge" style="display: none;"></span>' +
+            '</div>' +
+            '</div>';
+
+        // Diff hunk toggle
+        if (diffHtml) {
+            html += '<button class="diff-toggle" onclick="toggleDiff(this)">Show diff context</button>' +
+                '<div class="diff-hunk">' + diffHtml + '</div>';
+        }
+
+        // First comment (the review comment)
+        html += '<div class="reviewer-section">' +
+            '<div class="reviewer-info">' +
+            '<span class="reviewer-name">' + escapeHtml(firstComment.user) + '</span>' +
+            '<span class="reviewer-date">' + formatDate(firstComment.created_at) + '</span>' +
+            '</div>' +
+            '<div class="reviewer-body">' + renderCommentBody(firstComment.body) + '</div>' +
+            '</div>';
+
+        // Thread replies
+        if (replies.length > 0) {
+            html += '<div class="thread-replies">';
+            replies.forEach(function(reply) {
+                html += '<div class="thread-reply">' +
+                    '<div class="reviewer-info">' +
+                    '<span class="reviewer-name">' + escapeHtml(reply.user) + '</span>' +
+                    '<span class="reviewer-date">' + formatDate(reply.created_at) + '</span>' +
+                    '</div>' +
+                    '<div class="reviewer-body">' + renderCommentBody(reply.body) + '</div>' +
+                    '</div>';
+            });
+            html += '</div>';
+        }
+
+        // Reply area (only for unresolved threads)
+        if (!thread.isResolved) {
+            html += '<div class="reply-area" id="reply-' + threadId + '">' +
+                '<div class="reply-actions-row">' +
+                '<button class="btn btn-sm btn-primary" onclick="generateDraft(\'' + threadId + '\', ' + firstCommentId + ')">Generate AI Reply</button>' +
+                '<button class="btn btn-sm" onclick="showReplyBox(\'' + threadId + '\')">Write Reply</button>' +
+                '<button class="btn btn-sm agent-btn" onclick="applyChange(\'' + threadId + '\')">Apply Change</button>' +
+                '<button class="btn btn-sm btn-skip" onclick="skipThread(\'' + threadId + '\')">Skip</button>' +
+                '</div>' +
+                '<div class="draft-streaming" id="streaming-' + threadId + '">' +
+                '<span class="streaming-dot"></span>' +
+                '<span>AI is drafting a reply...</span>' +
+                '</div>' +
+                '<textarea class="reply-textarea" id="textarea-' + threadId + '" placeholder="Write your reply..."></textarea>' +
+                '<div class="reply-submit-row" id="submit-row-' + threadId + '">' +
+                '<button class="btn btn-sm" onclick="generateDraft(\'' + threadId + '\', ' + firstCommentId + ')">&#x21bb; Regenerate</button>' +
+                '<button class="btn btn-sm btn-success" onclick="submitReply(\'' + threadId + '\', ' + firstCommentId + ')">&#x2713; Submit Reply</button>' +
+                '</div>' +
+                '</div>';
+        }
+
+        html += '</div>';
+        return html;
+    }
+
+    function toggleResolvedCard(threadId) {
+        var card = document.getElementById('card-' + threadId);
+        if (card) card.classList.toggle('collapsed');
+    }
+
+    function toggleExpandResolved() {
+        expandResolved = document.getElementById('expand-resolved').checked;
+        document.querySelectorAll('.comment-card.resolved-card').forEach(function(card) {
+            if (expandResolved) {
+                card.classList.remove('collapsed');
+            } else {
+                card.classList.add('collapsed');
+            }
+        });
+    }
+
+    function toggleDiff(btn) {
+        var hunk = btn.nextElementSibling;
+        if (hunk.classList.contains('expanded')) {
+            hunk.classList.remove('expanded');
+            btn.textContent = 'Show diff context';
+        } else {
+            hunk.classList.add('expanded');
+            btn.textContent = 'Hide diff context';
         }
     }
 
-    async function generateDraft() {
-        if (isStreaming) return;
-        const comment = comments[currentIndex];
-        const textarea = document.getElementById('draft-textarea');
-        const streaming = document.getElementById('draft-streaming');
-        const genBtn = document.getElementById('generate-btn');
+    function showReplyBox(threadId) {
+        var textarea = document.getElementById('textarea-' + threadId);
+        var submitRow = document.getElementById('submit-row-' + threadId);
+        textarea.classList.add('visible');
+        submitRow.classList.add('visible');
+        textarea.focus();
+    }
 
-        isStreaming = true;
+    function getThreadById(threadId) {
+        for (var i = 0; i < threads.length; i++) {
+            if (threads[i].thread_id === threadId) return threads[i];
+        }
+        return null;
+    }
+
+    function skipThread(threadId) {
+        threadStates[threadId] = 'skipped';
+        updateCardState(threadId);
+    }
+
+    async function generateDraft(threadId, commentId) {
+        if (streamingThreadId) return;
+
+        var thread = getThreadById(threadId);
+        if (!thread) return;
+        var firstComment = thread.comments[0];
+
+        var textarea = document.getElementById('textarea-' + threadId);
+        var streaming = document.getElementById('streaming-' + threadId);
+        var submitRow = document.getElementById('submit-row-' + threadId);
+        var modelSelect = document.getElementById('model-select');
+
+        streamingThreadId = threadId;
         textarea.value = '';
+        textarea.classList.add('visible');
+        submitRow.classList.add('visible');
         streaming.classList.add('active');
-        if (genBtn) genBtn.disabled = true;
 
         try {
-            const resp = await fetch(`/pr/${repo}/${number}/comments/${comment.id}/draft`, {
+            var resp = await fetch('/pr/' + repo + '/' + number + '/comments/' + commentId + '/draft', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    path: comment.path,
-                    diff_hunk: comment.diff_hunk,
-                    body: comment.body,
-                    user: comment.user,
+                    path: thread.path,
+                    diff_hunk: thread.diff_hunk,
+                    body: firstComment.body,
+                    user: firstComment.user,
+                    model: modelSelect ? modelSelect.value : undefined,
                 }),
             });
 
-            const reader = resp.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
+            var reader = resp.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
 
             while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+                var result = await reader.read();
+                if (result.done) break;
 
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
+                buffer += decoder.decode(result.value, { stream: true });
+                var lines = buffer.split('\n');
                 buffer = lines.pop();
 
-                for (const line of lines) {
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i];
                     if (!line.startsWith('data: ')) continue;
-                    let event;
-                    try { event = JSON.parse(line.slice(6)); } catch { continue; }
+                    var event;
+                    try { event = JSON.parse(line.slice(6)); } catch(e) { continue; }
 
                     if (event.type === 'text') {
                         textarea.value += event.content;
@@ -516,15 +1061,13 @@
             textarea.value = '[Failed to generate draft: ' + err.message + ']';
         }
 
-        isStreaming = false;
+        streamingThreadId = null;
         streaming.classList.remove('active');
-        if (genBtn) genBtn.disabled = false;
     }
 
-    async function submitReply() {
-        const comment = comments[currentIndex];
-        const textarea = document.getElementById('draft-textarea');
-        const body = textarea.value.trim();
+    async function submitReply(threadId, commentId) {
+        var textarea = document.getElementById('textarea-' + threadId);
+        var body = textarea.value.trim();
 
         if (!body) {
             alert('Reply cannot be empty.');
@@ -532,74 +1075,43 @@
         }
 
         try {
-            const resp = await fetch(`/pr/${repo}/${number}/comments/${comment.id}/reply`, {
+            var resp = await fetch('/pr/' + repo + '/' + number + '/comments/' + commentId + '/reply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ body }),
+                body: JSON.stringify({ body: body }),
             });
 
-            const data = await resp.json();
+            var data = await resp.json();
             if (data.error) {
                 alert('Failed to submit reply: ' + data.error);
                 return;
             }
 
-            commentStates[comment.id] = 'addressed';
-            advanceToNext();
+            threadStates[threadId] = 'addressed';
+            updateCardState(threadId);
+
+            textarea.classList.remove('visible');
+            var submitRow = document.getElementById('submit-row-' + threadId);
+            submitRow.classList.remove('visible');
         } catch (err) {
             alert('Failed to submit reply: ' + err.message);
         }
     }
 
-    function advanceToNext() {
-        // Find next unaddressed comment
-        for (let i = currentIndex + 1; i < comments.length; i++) {
-            if (!commentStates[comments[i].id]) {
-                goToComment(i);
-                return;
-            }
-        }
-        // All done or at end
-        showAllDone();
+    function applyChange(threadId) {
+        var thread = getThreadById(threadId);
+        if (!thread) return;
+        var firstComment = thread.comments[0];
+        var prompt = encodeURIComponent(
+            "Address this review comment:\n\n" +
+            "File: " + (thread.path || 'unknown') + "\n" +
+            "Reviewer (" + (firstComment.user || 'reviewer') + ") said:\n" +
+            (firstComment.body || '') + "\n\nDiff context:\n```\n" +
+            (thread.diff_hunk || '') + "\n```\n\n" +
+            "Please make the necessary code changes."
+        );
+        window.location.href = '/pr/' + repo + '/' + number + '/chat?prompt=' + prompt;
     }
-
-    function showAllDone() {
-        const addressed = Object.values(commentStates).filter(s => s === 'addressed').length;
-        const skipped = Object.values(commentStates).filter(s => s === 'skipped').length;
-
-        commentArea.innerHTML = `
-            <div class="all-done">
-                <div class="all-done-icon">&#x2705;</div>
-                <div class="all-done-title">All comments addressed!</div>
-                <div class="all-done-summary">
-                    ${addressed} replied, ${skipped} skipped, ${comments.length} total
-                </div>
-                <a href="/" class="btn btn-primary">Back to Dashboard</a>
-            </div>`;
-        commentNav.style.display = 'none';
-
-        // Update progress dots
-        const dots = progressDots.querySelectorAll('.progress-dot');
-        dots.forEach((dot, i) => {
-            dot.className = 'progress-dot';
-            if (commentStates[comments[i].id] === 'addressed') dot.classList.add('addressed');
-            else if (commentStates[comments[i].id] === 'skipped') dot.classList.add('skipped');
-        });
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    prevBtn.addEventListener('click', () => goToComment(currentIndex - 1));
-    nextBtn.addEventListener('click', () => goToComment(currentIndex + 1));
-    skipBtn.addEventListener('click', () => {
-        const comment = comments[currentIndex];
-        commentStates[comment.id] = 'skipped';
-        advanceToNext();
-    });
 
     // Load on page ready
     loadComments();

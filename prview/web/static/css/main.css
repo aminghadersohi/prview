@@ -271,7 +271,7 @@ body {
 
 .pr-item {
     display: grid;
-    grid-template-columns: 70px 1fr 100px 50px 50px 90px 80px;
+    grid-template-columns: 70px 1fr 100px 50px 50px 90px 80px 210px;
     gap: 12px;
     padding: 10px 12px;
     background: var(--bg-primary);
@@ -385,7 +385,7 @@ body {
 
 /* Review requests section */
 .review-section .pr-item {
-    grid-template-columns: 70px 150px 1fr 100px 50px 50px 90px 80px;
+    grid-template-columns: 70px 150px 1fr 100px 50px 50px 90px 80px 210px;
 }
 
 .pr-repo {
@@ -723,15 +723,87 @@ kbd {
     color: var(--accent-yellow);
 }
 
+/* CI action buttons */
+.ci-action-btn {
+    color: var(--info) !important;
+    border-color: rgba(55, 148, 255, 0.3) !important;
+    background: rgba(55, 148, 255, 0.1) !important;
+}
+
+.ci-action-btn:hover {
+    background: rgba(55, 148, 255, 0.2) !important;
+    border-color: var(--info) !important;
+}
+
+.ci-fix-btn {
+    color: var(--warning) !important;
+    border-color: rgba(204, 167, 0, 0.3) !important;
+    background: rgba(204, 167, 0, 0.1) !important;
+}
+
+.ci-fix-btn:hover {
+    background: rgba(204, 167, 0, 0.2) !important;
+    border-color: var(--warning) !important;
+}
+
+/* PR title cell with story badges */
+.pr-title-cell {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.pr-title-cell .pr-title {
+    display: block;
+}
+
+/* Story badges */
+.story-badges {
+    display: inline-flex;
+    gap: 4px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+}
+
+.story-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    background: rgba(78, 201, 176, 0.15);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(78, 201, 176, 0.3);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.story-badge:hover {
+    background: rgba(78, 201, 176, 0.25);
+    border-color: var(--accent-cyan);
+}
+
+/* Agent button */
+.agent-btn {
+    color: var(--accent-purple) !important;
+    border-color: rgba(197, 134, 192, 0.3) !important;
+    background: rgba(197, 134, 192, 0.1) !important;
+}
+
+.agent-btn:hover {
+    background: rgba(197, 134, 192, 0.2) !important;
+    border-color: var(--accent-purple) !important;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
     .pr-item {
-        grid-template-columns: 60px 1fr 40px 40px 80px;
+        grid-template-columns: 60px 1fr 40px 40px 80px 180px;
     }
     .pr-author, .pr-changes {
         display: none;
     }
     .review-section .pr-item {
-        grid-template-columns: 60px 120px 1fr 40px 40px 80px;
+        grid-template-columns: 60px 120px 1fr 40px 40px 80px 180px;
     }
 }

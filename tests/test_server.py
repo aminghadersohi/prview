@@ -278,17 +278,26 @@ class TestCommentsRoutes:
             assert "Test PR" in response.text
 
     def test_api_pr_comments(self, client):
-        with patch("prview.web.server.get_pr_review_comments", return_value=[]):
+        with patch("prview.web.server.get_pr_review_threads", return_value=[]):
             response = client.get("/api/pr/org/repo/1/comments")
             assert response.status_code == 200
-            assert response.json() == {"comments": []}
+            assert response.json() == {"threads": []}
 
     def test_api_pr_comments_with_data(self, client):
-        mock_comments = [{"id": 1, "path": "file.py", "body": "Fix this", "user": "reviewer"}]
-        with patch("prview.web.server.get_pr_review_comments", return_value=mock_comments):
+        mock_threads = [
+            {
+                "id": "t1",
+                "path": "file.py",
+                "is_resolved": False,
+                "comments": [
+                    {"id": 1, "body": "Fix this", "user": "reviewer"},
+                ],
+            }
+        ]
+        with patch("prview.web.server.get_pr_review_threads", return_value=mock_threads):
             response = client.get("/api/pr/org/repo/42/comments")
             assert response.status_code == 200
-            assert len(response.json()["comments"]) == 1
+            assert len(response.json()["threads"]) == 1
 
     def test_reply_to_comment_empty_body(self, client):
         response = client.post(
