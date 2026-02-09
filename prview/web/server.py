@@ -132,6 +132,8 @@ def init_db():
             is_review_request INTEGER DEFAULT 0,
             last_synced TEXT,
             linked_stories TEXT DEFAULT '[]',
+            comment_count INTEGER DEFAULT 0,
+            unresolved_count INTEGER DEFAULT 0,
             UNIQUE(repo, number)
         )
     """)
@@ -148,6 +150,16 @@ def init_db():
         conn.execute("SELECT linked_stories FROM prs LIMIT 1")
     except sqlite3.OperationalError:
         conn.execute("ALTER TABLE prs ADD COLUMN linked_stories TEXT DEFAULT '[]'")
+
+    # Migrate: add comment_count and unresolved_count columns if missing
+    try:
+        conn.execute("SELECT comment_count FROM prs LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE prs ADD COLUMN comment_count INTEGER DEFAULT 0")
+    try:
+        conn.execute("SELECT unresolved_count FROM prs LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE prs ADD COLUMN unresolved_count INTEGER DEFAULT 0")
 
     # --- Agent / worktree tables ---
     conn.execute("""
@@ -243,6 +255,36 @@ def get_pr_details(repo: str, pr_number: int) -> dict:
         return json.loads(output)
     except json.JSONDecodeError:
         return {}
+
+
+def get_pr_thread_counts(repo: str, pr_number: int) -> dict:
+    """Get review thread counts via lightweight GraphQL query.
+
+    Returns dict with comment_count (total threads) and unresolved_count.
+    """
+    owner, name = repo.split("/", 1)
+    query = (
+        'query{repository(owner:"%s",name:"%s"){pullRequest(number:%d)'
+        "{reviewThreads(first:100){totalCount nodes{isResolved}}"
+        "comments{totalCount}}}}" % (owner, name, pr_number)
+    )
+    output = run_gh(["api", "graphql", "-f", f"query={query}"], timeout=15)
+    if not output:
+        return {"comment_count": 0, "unresolved_count": 0}
+    try:
+        data = json.loads(output)
+        pr_data = data.get("data", {}).get("repository", {}).get("pullRequest", {})
+        threads = pr_data.get("reviewThreads", {})
+        total = threads.get("totalCount", 0)
+        nodes = threads.get("nodes", [])
+        unresolved = sum(1 for n in nodes if not n.get("isResolved", True))
+        general_comments = pr_data.get("comments", {}).get("totalCount", 0)
+        return {
+            "comment_count": total + general_comments,
+            "unresolved_count": unresolved,
+        }
+    except (json.JSONDecodeError, ValueError, AttributeError):
+        return {"comment_count": 0, "unresolved_count": 0}
 
 
 def get_ci_status(checks: list) -> str:
@@ -345,14 +387,17 @@ def sync_prs():
                 stories = fetch_linked_stories(repo, pr_number)
                 stories_json = json.dumps(stories)
 
+                # Fetch review thread counts
+                thread_counts = get_pr_thread_counts(repo, pr_number)
+
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO prs
                     (repo, number, title, author, draft, ci_status,
                      review_status, url, updated_at, additions,
                      deletions, is_review_request, last_synced,
-                     linked_stories)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+                     linked_stories, comment_count, unresolved_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
                 """,
                     (
                         repo,
@@ -368,6 +413,8 @@ def sync_prs():
                         details.get("deletions", 0),
                         now,
                         stories_json,
+                        thread_counts["comment_count"],
+                        thread_counts["unresolved_count"],
                     ),
                 )
 
@@ -406,14 +453,17 @@ def sync_prs():
                 stories = fetch_linked_stories(repo, pr_number)
                 stories_json = json.dumps(stories)
 
+                # Fetch review thread counts
+                thread_counts = get_pr_thread_counts(repo, pr_number)
+
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO prs
                     (repo, number, title, author, draft, ci_status,
                      review_status, url, updated_at, additions,
                      deletions, is_review_request, last_synced,
-                     linked_stories)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                     linked_stories, comment_count, unresolved_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
                 """,
                     (
                         repo,
@@ -429,6 +479,8 @@ def sync_prs():
                         details.get("deletions", 0),
                         now,
                         stories_json,
+                        thread_counts["comment_count"],
+                        thread_counts["unresolved_count"],
                     ),
                 )
 
@@ -450,12 +502,21 @@ def get_prs_from_db():
     conn = get_db_connection()
     conn.row_factory = sqlite3.Row
 
+    # LEFT JOIN with worktrees to get has_worktree flag
     my_prs = conn.execute("""
-        SELECT * FROM prs WHERE is_review_request = 0 ORDER BY repo, updated_at DESC
+        SELECT p.*, CASE WHEN w.id IS NOT NULL THEN 1 ELSE 0 END as has_worktree
+        FROM prs p
+        LEFT JOIN worktrees w ON p.repo = w.repo_full_name AND p.number = w.pr_number
+        WHERE p.is_review_request = 0
+        ORDER BY p.repo, p.updated_at DESC
     """).fetchall()
 
     review_requests = conn.execute("""
-        SELECT * FROM prs WHERE is_review_request = 1 ORDER BY updated_at DESC
+        SELECT p.*, CASE WHEN w.id IS NOT NULL THEN 1 ELSE 0 END as has_worktree
+        FROM prs p
+        LEFT JOIN worktrees w ON p.repo = w.repo_full_name AND p.number = w.pr_number
+        WHERE p.is_review_request = 1
+        ORDER BY p.updated_at DESC
     """).fetchall()
 
     sync_status = conn.execute("SELECT * FROM sync_status WHERE id = 1").fetchone()
@@ -469,6 +530,8 @@ def get_prs_from_db():
             d["linked_stories"] = json.loads(d.get("linked_stories", "[]") or "[]")
         except (json.JSONDecodeError, TypeError):
             d["linked_stories"] = []
+        # Convert has_worktree to boolean
+        d["has_worktree"] = bool(d.get("has_worktree", 0))
         return d
 
     # Group my PRs by repo

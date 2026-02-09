@@ -1,3 +1,117 @@
+<!-- Macros for PR row and card views -->
+{% macro ci_icon(pr) %}
+{% if pr.ci_status == 'success' %}<span class="status-icon success">&#x2713;</span>
+{% elif pr.ci_status == 'failure' %}<span class="status-icon failure">&#x2717;</span>
+{% elif pr.ci_status == 'pending' %}<span class="status-icon pending">&#x25D0;</span>
+{% else %}<span class="status-icon none">&#x25CB;</span>{% endif %}
+{% endmacro %}
+
+{% macro review_icon(pr) %}
+{% if pr.review_status == 'approved' %}<span class="status-icon success">&#x2713;</span>
+{% elif pr.review_status == 'changes_requested' %}<span class="status-icon failure">&#x2717;</span>
+{% elif pr.review_status == 'review_required' %}<span class="status-icon pending">&#x25CF;</span>
+{% else %}<span class="status-icon none">&#x25CB;</span>{% endif %}
+{% endmacro %}
+
+{% macro comment_badge(pr) %}
+{% if pr.unresolved_count %}<a href="/pr/{{ pr.repo }}/{{ pr.number }}/comments" class="pr-comment-badge unresolved" title="{{ pr.unresolved_count }} unresolved thread{{ 's' if pr.unresolved_count != 1 else '' }}">{{ pr.unresolved_count }}</a>
+{% elif pr.comment_count %}<a href="/pr/{{ pr.repo }}/{{ pr.number }}/comments" class="pr-comment-badge" title="{{ pr.comment_count }} comment{{ 's' if pr.comment_count != 1 else '' }}">{{ pr.comment_count }}</a>
+{% endif %}
+{% endmacro %}
+
+{% macro changes_display(pr) %}
+{% if pr.additions %}<span class="additions">+{{ pr.additions }}</span>{% endif %}
+{% if pr.deletions %}<span class="deletions">-{{ pr.deletions }}</span>{% endif %}
+{% if not pr.additions and not pr.deletions %}&mdash;{% endif %}
+{% endmacro %}
+
+{% macro action_buttons(pr, is_review=false) %}
+{% if pr.ci_status == 'failure' %}
+<a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=explain" class="pr-action-btn ci-action-btn" title="Explain CI failure">Explain CI</a>
+<a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=fix" class="pr-action-btn ci-fix-btn" title="Suggest CI fix">Fix CI</a>
+{% endif %}
+{% if is_review %}
+<a href="/pr/{{ pr.repo }}/{{ pr.number }}/review" class="pr-action-btn" title="AI-assisted review">Review</a>
+{% else %}
+<a href="/pr/{{ pr.repo }}/{{ pr.number }}/comments" class="pr-action-btn" title="Address reviewer comments">Comments</a>
+{% endif %}
+<a href="/pr/{{ pr.repo }}/{{ pr.number }}/chat" class="pr-action-btn agent-btn {% if pr.has_worktree %}agent-btn--active{% endif %}" title="{% if pr.has_worktree %}Worktree active - PR agent chat{% else %}PR agent chat{% endif %}">{% if pr.has_worktree %}<span class="wt-icon">&#x2713;</span> {% endif %}Agent</a>
+{% endmacro %}
+
+{% macro pr_row(pr, show_repo=false, is_review=false) %}
+<div class="pr-item {% if is_review %}pr-item--review{% endif %}">
+    <a href="{{ pr.url }}" target="_blank" class="pr-number" style="text-decoration: none;">#{{ pr.number }}</a>
+    {% if show_repo %}
+    <span class="pr-repo">{{ pr.repo.split('/')[-1] }}</span>
+    {% endif %}
+    <div class="pr-title-cell">
+        <a href="{{ pr.url }}" target="_blank" class="pr-title {% if pr.draft %}draft{% endif %}" style="text-decoration: none; color: inherit;">
+            {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
+            {{ pr.title }}
+        </a>
+        {% if pr.linked_stories %}
+        <span class="story-badges">
+            {% for story in pr.linked_stories %}
+            <a href="{{ story.url }}" target="_blank" class="story-badge" title="{{ story.name }}">SC-{{ story.id }} {{ story.state }}</a>
+            {% endfor %}
+        </span>
+        {% endif %}
+    </div>
+    <span class="pr-author">{{ pr.author }}</span>
+    <span class="pr-ci">{{ ci_icon(pr) }}</span>
+    <span class="pr-review">{{ review_icon(pr) }}</span>
+    <span class="pr-comments">{{ comment_badge(pr) }}</span>
+    <span class="pr-changes">{{ changes_display(pr) }}</span>
+    <span class="pr-updated">{{ pr.updated_at }}</span>
+    <span class="pr-actions">{{ action_buttons(pr, is_review) }}</span>
+</div>
+{% endmacro %}
+
+{% macro pr_card(pr, show_repo=false, is_review=false) %}
+<div class="pr-card {% if pr.draft %}pr-card--draft{% endif %}">
+    <div class="pr-card-header">
+        <a href="{{ pr.url }}" target="_blank" class="pr-card-number">#{{ pr.number }}</a>
+        {% if show_repo %}
+        <span class="pr-card-repo">{{ pr.repo.split('/')[-1] }}</span>
+        {% endif %}
+        <div class="pr-card-indicators">
+            {{ comment_badge(pr) }}
+            <span class="pr-card-indicator" title="CI: {{ pr.ci_status or 'none' }}">{{ ci_icon(pr) }}</span>
+            <span class="pr-card-indicator" title="Review: {{ pr.review_status or 'none' }}">{{ review_icon(pr) }}</span>
+        </div>
+    </div>
+    <div class="pr-card-body">
+        <a href="{{ pr.url }}" target="_blank" class="pr-card-title {% if pr.draft %}draft{% endif %}">
+            {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
+            {{ pr.title }}
+        </a>
+        {% if pr.linked_stories %}
+        <div class="story-badges">
+            {% for story in pr.linked_stories %}
+            <a href="{{ story.url }}" target="_blank" class="story-badge" title="{{ story.name }}">SC-{{ story.id }} {{ story.state }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="pr-card-meta">
+        <span class="pr-card-author">{{ pr.author }}</span>
+        <span class="pr-card-changes">{{ changes_display(pr) }}</span>
+        <span class="pr-card-updated">{{ pr.updated_at }}</span>
+    </div>
+    <div class="pr-card-actions">{{ action_buttons(pr, is_review) }}</div>
+</div>
+{% endmacro %}
+
+<!-- View toggle -->
+<div class="view-toggle">
+    <button class="view-toggle-btn active" data-view="rows" onclick="setView('rows')" title="Row view">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h14v1H1zm0 4h14v1H1zm0 4h14v1H1z"/></svg>
+    </button>
+    <button class="view-toggle-btn" data-view="cards" onclick="setView('cards')" title="Card view">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h6v6H1zm8 0h6v6H9zM1 9h6v6H1zm8 0h6v6H9z"/></svg>
+    </button>
+</div>
+
 <!-- My PRs Section -->
 <section class="section">
     <div class="section-header">
@@ -13,61 +127,16 @@
                 <span class="repo-icon">&#x1F4C1;</span>
                 <span>{{ repo }}</span>
             </div>
-            <div class="pr-list">
+            <!-- Row view -->
+            <div class="pr-list pr-view-rows">
                 {% for pr in prs %}
-                <div class="pr-item" style="grid-template-columns: 70px 1fr 100px 50px 50px 90px 80px 210px;">
-                    <a href="{{ pr.url }}" target="_blank" class="pr-number" style="text-decoration: none;">#{{ pr.number }}</a>
-                    <div class="pr-title-cell">
-                        <a href="{{ pr.url }}" target="_blank" class="pr-title {% if pr.draft %}draft{% endif %}" style="text-decoration: none; color: inherit;">
-                            {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
-                            {{ pr.title }}
-                        </a>
-                        {% if pr.linked_stories %}
-                        <span class="story-badges">
-                            {% for story in pr.linked_stories %}
-                            <a href="{{ story.url }}" target="_blank" class="story-badge" title="{{ story.name }}">SC-{{ story.id }} {{ story.state }}</a>
-                            {% endfor %}
-                        </span>
-                        {% endif %}
-                    </div>
-                    <span class="pr-author">{{ pr.author }}</span>
-                    <span class="pr-ci">
-                        {% if pr.ci_status == 'success' %}
-                        <span class="status-icon success">&#x2713;</span>
-                        {% elif pr.ci_status == 'failure' %}
-                        <span class="status-icon failure">&#x2717;</span>
-                        {% elif pr.ci_status == 'pending' %}
-                        <span class="status-icon pending">&#x25D0;</span>
-                        {% else %}
-                        <span class="status-icon none">&#x25CB;</span>
-                        {% endif %}
-                    </span>
-                    <span class="pr-review">
-                        {% if pr.review_status == 'approved' %}
-                        <span class="status-icon success">&#x2713;</span>
-                        {% elif pr.review_status == 'changes_requested' %}
-                        <span class="status-icon failure">&#x2717;</span>
-                        {% elif pr.review_status == 'review_required' %}
-                        <span class="status-icon pending">&#x25CF;</span>
-                        {% else %}
-                        <span class="status-icon none">&#x25CB;</span>
-                        {% endif %}
-                    </span>
-                    <span class="pr-changes">
-                        {% if pr.additions %}<span class="additions">+{{ pr.additions }}</span>{% endif %}
-                        {% if pr.deletions %}<span class="deletions">-{{ pr.deletions }}</span>{% endif %}
-                        {% if not pr.additions and not pr.deletions %}&mdash;{% endif %}
-                    </span>
-                    <span class="pr-updated">{{ pr.updated_at }}</span>
-                    <span class="pr-actions">
-                        {% if pr.ci_status == 'failure' %}
-                        <a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=explain" class="pr-action-btn ci-action-btn" title="Explain CI failure">Explain CI</a>
-                        <a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=fix" class="pr-action-btn ci-fix-btn" title="Suggest CI fix">Fix CI</a>
-                        {% endif %}
-                        <a href="/pr/{{ pr.repo }}/{{ pr.number }}/comments" class="pr-action-btn" title="Address reviewer comments">Comments</a>
-                        <a href="/pr/{{ pr.repo }}/{{ pr.number }}/chat" class="pr-action-btn agent-btn" title="PR agent chat">Agent</a>
-                    </span>
-                </div>
+                {{ pr_row(pr) }}
+                {% endfor %}
+            </div>
+            <!-- Card view -->
+            <div class="pr-card-grid pr-view-cards" style="display: none;">
+                {% for pr in prs %}
+                {{ pr_card(pr) }}
                 {% endfor %}
             </div>
         </div>
@@ -81,7 +150,7 @@
 </section>
 
 <!-- Review Requests Section -->
-<section class="section review-section">
+<section class="section">
     <div class="section-header">
         <span class="section-icon">&#x1F440;</span>
         <span class="section-title">Needs My Review</span>
@@ -89,65 +158,19 @@
     </div>
 
     {% if review_requests %}
+    <!-- Row view -->
     <div class="repo-group">
-        <div class="pr-list" style="border-radius: 6px; border-top: 1px solid var(--border);">
+        <div class="pr-list pr-view-rows" style="border-radius: 6px; border-top: 1px solid var(--border);">
             {% for pr in review_requests %}
-            <div class="pr-item" style="grid-template-columns: 70px 150px 1fr 100px 50px 50px 90px 80px 210px;">
-                <a href="{{ pr.url }}" target="_blank" class="pr-number" style="text-decoration: none;">#{{ pr.number }}</a>
-                <span class="pr-repo">{{ pr.repo.split('/')[-1] }}</span>
-                <div class="pr-title-cell">
-                    <a href="{{ pr.url }}" target="_blank" class="pr-title {% if pr.draft %}draft{% endif %}" style="text-decoration: none; color: inherit;">
-                        {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
-                        {{ pr.title }}
-                    </a>
-                    {% if pr.linked_stories %}
-                    <span class="story-badges">
-                        {% for story in pr.linked_stories %}
-                        <a href="{{ story.url }}" target="_blank" class="story-badge" title="{{ story.name }}">SC-{{ story.id }} {{ story.state }}</a>
-                        {% endfor %}
-                    </span>
-                    {% endif %}
-                </div>
-                <span class="pr-author">{{ pr.author }}</span>
-                <span class="pr-ci">
-                    {% if pr.ci_status == 'success' %}
-                    <span class="status-icon success">&#x2713;</span>
-                    {% elif pr.ci_status == 'failure' %}
-                    <span class="status-icon failure">&#x2717;</span>
-                    {% elif pr.ci_status == 'pending' %}
-                    <span class="status-icon pending">&#x25D0;</span>
-                    {% else %}
-                    <span class="status-icon none">&#x25CB;</span>
-                    {% endif %}
-                </span>
-                <span class="pr-review">
-                    {% if pr.review_status == 'approved' %}
-                    <span class="status-icon success">&#x2713;</span>
-                    {% elif pr.review_status == 'changes_requested' %}
-                    <span class="status-icon failure">&#x2717;</span>
-                    {% elif pr.review_status == 'review_required' %}
-                    <span class="status-icon pending">&#x25CF;</span>
-                    {% else %}
-                    <span class="status-icon none">&#x25CB;</span>
-                    {% endif %}
-                </span>
-                <span class="pr-changes">
-                    {% if pr.additions %}<span class="additions">+{{ pr.additions }}</span>{% endif %}
-                    {% if pr.deletions %}<span class="deletions">-{{ pr.deletions }}</span>{% endif %}
-                    {% if not pr.additions and not pr.deletions %}&mdash;{% endif %}
-                </span>
-                <span class="pr-updated">{{ pr.updated_at }}</span>
-                <span class="pr-actions">
-                    {% if pr.ci_status == 'failure' %}
-                    <a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=explain" class="pr-action-btn ci-action-btn" title="Explain CI failure">Explain CI</a>
-                    <a href="/pr/{{ pr.repo }}/{{ pr.number }}/ci-analysis?mode=fix" class="pr-action-btn ci-fix-btn" title="Suggest CI fix">Fix CI</a>
-                    {% endif %}
-                    <a href="/pr/{{ pr.repo }}/{{ pr.number }}/review" class="pr-action-btn" title="AI-assisted review">Review</a>
-                    <a href="/pr/{{ pr.repo }}/{{ pr.number }}/chat" class="pr-action-btn agent-btn" title="PR agent chat">Agent</a>
-                </span>
-            </div>
+            {{ pr_row(pr, show_repo=true, is_review=true) }}
             {% endfor %}
         </div>
+    </div>
+    <!-- Card view -->
+    <div class="pr-card-grid pr-view-cards" style="display: none;">
+        {% for pr in review_requests %}
+        {{ pr_card(pr, show_repo=true, is_review=true) }}
+        {% endfor %}
     </div>
     {% else %}
         <div class="empty-state">
@@ -156,3 +179,31 @@
         </div>
     {% endif %}
 </section>
+
+<script>
+function setView(view) {
+    var rowEls = document.querySelectorAll('.pr-view-rows');
+    var cardEls = document.querySelectorAll('.pr-view-cards');
+    var btns = document.querySelectorAll('.view-toggle-btn');
+
+    for (var i = 0; i < rowEls.length; i++) {
+        rowEls[i].style.display = view === 'rows' ? '' : 'none';
+    }
+    for (var i = 0; i < cardEls.length; i++) {
+        cardEls[i].style.display = view === 'cards' ? '' : 'none';
+    }
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === view);
+    }
+
+    try { localStorage.setItem('prview-layout', view); } catch(e) {}
+}
+
+// Restore saved preference
+(function() {
+    try {
+        var saved = localStorage.getItem('prview-layout');
+        if (saved === 'cards') { setView('cards'); }
+    } catch(e) {}
+})();
+</script>
