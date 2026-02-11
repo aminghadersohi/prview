@@ -67,6 +67,58 @@
 </div>
 {% endmacro %}
 
+{% macro tile_health(pr) %}{% if pr.ci_status == 'failure' or pr.review_status == 'changes_requested' %}health-bad{% elif pr.ci_status == 'pending' or pr.review_status == 'review_required' %}health-warn{% elif pr.ci_status == 'success' %}health-good{% endif %}{% endmacro %}
+
+{% macro tile_dot(status) %}{% if status == 'success' or status == 'approved' %}success{% elif status == 'failure' or status == 'changes_requested' %}failure{% elif status == 'pending' or status == 'review_required' %}pending{% else %}none{% endif %}{% endmacro %}
+
+{% macro pr_tile(pr, show_repo=false, is_review=false) %}
+<div class="pr-tile {{ tile_health(pr) }} {% if pr.draft %}pr-tile--draft{% endif %}"
+     data-tile-id="{{ pr.repo }}-{{ pr.number }}"
+     onclick="toggleTileDetail(this)">
+    {% if pr.unresolved_count %}<span class="pr-tile-badge">{{ pr.unresolved_count }}</span>{% endif %}
+    <div class="pr-tile-top">
+        <span class="pr-tile-number">#{{ pr.number }}</span>
+        <span class="pr-tile-dots">
+            <span class="pr-tile-dot {{ tile_dot(pr.ci_status) }}" title="CI: {{ pr.ci_status or 'none' }}"></span>
+            <span class="pr-tile-dot {{ tile_dot(pr.review_status) }}" title="Review: {{ pr.review_status or 'none' }}"></span>
+        </span>
+    </div>
+    <div class="pr-tile-title">{% if show_repo %}{{ pr.repo.split('/')[-1] }}: {% endif %}{{ pr.title }}</div>
+</div>
+<!-- Hidden detail panel; JS will manage open/close -->
+<div class="pr-tile-detail" data-detail-id="{{ pr.repo }}-{{ pr.number }}">
+    <div class="pr-tile-detail-header">
+        <a href="{{ pr.url }}" target="_blank" class="pr-tile-detail-number">#{{ pr.number }}</a>
+        <a href="{{ pr.url }}" target="_blank" class="pr-tile-detail-title {% if pr.draft %}draft{% endif %}">
+            {% if pr.draft %}<span class="pr-draft-badge">draft</span>{% endif %}
+            {{ pr.title }}
+        </a>
+        <button class="pr-tile-detail-close" onclick="event.stopPropagation(); closeTileDetail()" title="Close">&times;</button>
+    </div>
+    <div class="pr-tile-detail-meta">
+        {% if show_repo %}<span class="pr-repo">{{ pr.repo.split('/')[-1] }}</span>{% endif %}
+        <span class="pr-author">{{ pr.author }}</span>
+        <span class="pr-changes">{{ changes_display(pr) }}</span>
+        <span class="pr-updated" style="font-size: 11px; color: var(--text-muted);">{{ pr.updated_at }}</span>
+        <div class="pr-tile-detail-statuses">
+            <span class="pr-tile-detail-stat">CI {{ ci_icon(pr) }}</span>
+            <span class="pr-tile-detail-stat">Review {{ review_icon(pr) }}</span>
+            {% if pr.unresolved_count or pr.comment_count %}
+            <span class="pr-tile-detail-stat">{{ comment_badge(pr) }}</span>
+            {% endif %}
+        </div>
+        {% if pr.linked_stories %}
+        <span class="story-badges">
+            {% for story in pr.linked_stories %}
+            <a href="{{ story.url }}" target="_blank" class="story-badge" title="{{ story.name }}">SC-{{ story.id }} {{ story.state }}</a>
+            {% endfor %}
+        </span>
+        {% endif %}
+    </div>
+    <div class="pr-tile-detail-actions">{{ action_buttons(pr, is_review) }}</div>
+</div>
+{% endmacro %}
+
 {% macro pr_card(pr, show_repo=false, is_review=false) %}
 <div class="pr-card {% if pr.draft %}pr-card--draft{% endif %}">
     <div class="pr-card-header">
@@ -110,6 +162,9 @@
     <button class="view-toggle-btn" data-view="cards" onclick="setView('cards')" title="Card view">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h6v6H1zm8 0h6v6H9zM1 9h6v6H1zm8 0h6v6H9z"/></svg>
     </button>
+    <button class="view-toggle-btn" data-view="tiles" onclick="setView('tiles')" title="Compact tiles">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h3v3H1zm5 0h3v3H6zm5 0h3v3H11zM1 6h3v3H1zm5 0h3v3H6zm5 0h3v3H11zM1 11h3v3H1zm5 0h3v3H6zm5 0h3v3H11z"/></svg>
+    </button>
 </div>
 
 <!-- My PRs Section -->
@@ -137,6 +192,12 @@
             <div class="pr-card-grid pr-view-cards" style="display: none;">
                 {% for pr in prs %}
                 {{ pr_card(pr) }}
+                {% endfor %}
+            </div>
+            <!-- Tile view -->
+            <div class="pr-tile-grid pr-view-tiles" style="display: none;">
+                {% for pr in prs %}
+                {{ pr_tile(pr) }}
                 {% endfor %}
             </div>
         </div>
@@ -172,6 +233,12 @@
         {{ pr_card(pr, show_repo=true, is_review=true) }}
         {% endfor %}
     </div>
+    <!-- Tile view -->
+    <div class="pr-tile-grid pr-view-tiles" style="display: none;">
+        {% for pr in review_requests %}
+        {{ pr_tile(pr, show_repo=true, is_review=true) }}
+        {% endfor %}
+    </div>
     {% else %}
         <div class="empty-state">
             <div class="empty-icon">&#x2728;</div>
@@ -182,28 +249,60 @@
 
 <script>
 function setView(view) {
-    var rowEls = document.querySelectorAll('.pr-view-rows');
-    var cardEls = document.querySelectorAll('.pr-view-cards');
+    var views = {rows: '.pr-view-rows', cards: '.pr-view-cards', tiles: '.pr-view-tiles'};
     var btns = document.querySelectorAll('.view-toggle-btn');
-
-    for (var i = 0; i < rowEls.length; i++) {
-        rowEls[i].style.display = view === 'rows' ? '' : 'none';
-    }
-    for (var i = 0; i < cardEls.length; i++) {
-        cardEls[i].style.display = view === 'cards' ? '' : 'none';
+    for (var key in views) {
+        var els = document.querySelectorAll(views[key]);
+        for (var i = 0; i < els.length; i++) {
+            els[i].style.display = key === view ? '' : 'none';
+        }
     }
     for (var i = 0; i < btns.length; i++) {
         btns[i].classList.toggle('active', btns[i].getAttribute('data-view') === view);
     }
-
+    // Close any open tile detail when switching views
+    closeTileDetail();
     try { localStorage.setItem('prview-layout', view); } catch(e) {}
 }
+
+/* Tile expand/collapse */
+var _openTileId = null;
+
+function toggleTileDetail(tileEl) {
+    var id = tileEl.getAttribute('data-tile-id');
+    if (_openTileId === id) {
+        closeTileDetail();
+        return;
+    }
+    closeTileDetail();
+    _openTileId = id;
+    tileEl.classList.add('expanded');
+    var detail = tileEl.parentElement.querySelector('[data-detail-id="' + id + '"]');
+    if (detail) {
+        // Small delay so the browser registers the transition from max-height:0
+        requestAnimationFrame(function() { detail.classList.add('open'); });
+    }
+}
+
+function closeTileDetail() {
+    if (!_openTileId) return;
+    var prev = document.querySelector('.pr-tile.expanded');
+    if (prev) prev.classList.remove('expanded');
+    var prevDetail = document.querySelector('.pr-tile-detail.open');
+    if (prevDetail) prevDetail.classList.remove('open');
+    _openTileId = null;
+}
+
+// Close on Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeTileDetail();
+});
 
 // Restore saved preference
 (function() {
     try {
         var saved = localStorage.getItem('prview-layout');
-        if (saved === 'cards') { setView('cards'); }
+        if (saved && saved !== 'rows') { setView(saved); }
     } catch(e) {}
 })();
 </script>
