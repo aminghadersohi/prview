@@ -6,7 +6,7 @@ A powerful PR dashboard with AI-powered code agent, CI analysis, and review tool
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 [![PyPI](https://img.shields.io/pypi/v/prview.svg)](https://pypi.org/project/prview/)
 
-<img width="1737" height="894" alt="prview dashboard" src="https://github.com/user-attachments/assets/67776c53-12c2-4b60-b6bf-e44240fb1aec" />
+<img width="1747" height="854" alt="Screenshot 2026-02-11 at 2 54 42 PM" src="https://github.com/user-attachments/assets/2645d76a-6b70-4381-ad66-184b3b618ecf" />
 <img width="1746" height="977" alt="Screenshot 2026-02-11 at 2 53 46 PM" src="https://github.com/user-attachments/assets/11002dc2-9289-47f1-9dba-eaec0893e503" />
 
 
